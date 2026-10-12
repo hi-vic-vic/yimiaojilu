@@ -1,4 +1,5 @@
-const VT=require('./schedule.js'),assert=require('assert');const T='2026-10-12';
+const VT=require('./schedule.js'),assert=require('assert'),fs=require('fs'),path=require('path');const T='2026-10-12';
+const xunbao=JSON.parse(fs.readFileSync(path.join(__dirname,'test/fixtures/xunbao-export.json'),'utf8'));
 const g=(p,id)=>p.find(s=>s.id===id);
 // 新生儿
 let p=VT.seriesPlan({birth:'2026-10-10',records:[]},T);
@@ -73,4 +74,27 @@ assert.equal(VT.parseAuthHash(hash).user.id,'u1');
 assert.ok(VT.sessionFromAuthResponse({access_token:tok,refresh_token:'rr',expires_in:3600}).user.email==='t@e.com');
 assert.ok(VT.needsTokenRefresh({expires_at:Date.now()+60e3}));
 assert.ok(!VT.needsTokenRefresh({expires_at:Date.now()+600e3}));
+// 单孩子 profile/records 导入（浔宝样例）
+assert.equal(VT.detectImportFormat(xunbao).kind,'single');
+const conv=VT.convertSingleChildExport(xunbao);assert.ok(conv.ok);
+assert.equal(conv.imported,9);assert.equal(conv.skipped,0);
+assert.equal(conv.child.records.length,9);
+assert.equal(conv.child.selfPaid.penta,true);assert.equal(conv.child.selfPaid.rv3,true);
+const imp=VT.importIntoState({children:[],cur:null},xunbao);assert.ok(imp.ok);
+assert.equal(imp.state.children.length,1);assert.equal(imp.state.children[0].records.length,9);
+const ch=imp.state.children[0];
+let p=VT.seriesPlan(ch,T);
+assert.equal(p.find(s=>s.id==='dtap').status,'covered');
+assert.equal(p.find(s=>s.id==='polio').status,'covered');
+assert.equal(p.find(s=>s.id==='hib').status,'covered');
+assert.equal(p.find(s=>s.id==='penta').given,3);
+const round=VT.exportSingleChild(ch);
+assert.equal(round.profile.id,'baby-f61df079ea8b');
+assert.equal(round.profile.addons.includes('pentavalent'),true);
+assert.equal(round.profile.addons.includes('rotavirus3'),true);
+assert.equal(Object.keys(round.records).length,9);
+assert.ok(round.records['penta-1']&&round.records['rota3-3']);
+const bad=VT.convertSingleChildExport({profile:{name:'x',birth:'2026-01-01',sex:'boy',id:'t',addons:[]},records:{'not-a-dose-1':{date:'2026-01-02',clinic:'',note:''},'hepb-1':{date:'bad',clinic:'',note:''}}});
+assert.equal(bad.imported,0);assert.equal(bad.skipped,2);
+assert.equal(VT.importIntoState({children:[],cur:null},[{profile:xunbao.profile,records:xunbao.records}]).state.children.length,1);
 console.log('All tests passed');

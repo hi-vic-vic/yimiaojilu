@@ -1,0 +1,62 @@
+{
+  "profile": {
+    "name": "浔宝",
+    "birth": "2026-05-11",
+    "sex": "boy",
+    "je": "live",
+    "hepa": "live",
+    "id": "baby-f61df079ea8b",
+    "addons": [
+      "pentavalent",
+      "rotavirus3"
+    ]
+  },
+  "records": {
+    "bcg-1": {
+      "date": "2026-05-11",
+      "clinic": "",
+      "note": ""
+    },
+    "hepb-1": {
+      "date": "2026-05-11",
+      "clinic": "",
+      "note": ""
+    },
+    "hepb-2": {
+      "date": "2026-06-11",
+      "clinic": "",
+      "note": ""
+    },
+    "penta-1": {
+      "date": "2026-07-22",
+      "clinic": "",
+      "note": ""
+    },
+    "penta-2": {
+      "date": "2026-08-22",
+      "clinic": "",
+      "note": ""
+    },
+    "rota3-1": {
+      "date": "2026-08-05",
+      "clinic": "",
+      "note": ""
+    },
+    "rota3-2": {
+      "date": "2026-09-08",
+      "clinic": "",
+      "note": ""
+    },
+    "penta-3": {
+      "date": "2026-09-24",
+      "clinic": "",
+      "note": ""
+    },
+    "rota3-3": {
+      "date": "2026-10-08",
+      "clinic": "",
+      "note": ""
+    }
+  },
+  "exportedAt": "2026-10-12T07:29:56.743Z"
+}
