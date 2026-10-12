@@ -16,6 +16,7 @@
 | **轮状病毒二选一** | 三价口服轮状（rv3）与五价轮状（rv5）互斥选择，避免重复计划 |
 | **下一针推荐** | 结合出生日期、已录剂次、最小间隔与超龄规则，在概览页突出「下一针」，并支持导出 `.ics` 日历提醒 |
 | **本机存储** | 默认使用 `localStorage`；无法持久化时回退到内存并提示导出备份 |
+| **导入 / 导出** | 支持单孩子「档案」JSON、多孩子完整备份，以及多种格式自动识别导入（见下文） |
 | **可选云同步** | 邮箱登录后，经 Supabase 在多设备间同步整份应用状态（见下文） |
 
 ### 数据来源（程序内置引用）
@@ -109,17 +110,8 @@ create policy "vaccine_data_own_row" on public.vaccine_data
 
 ### 密钥与安全
 
-- 前端使用的 **anon（公开）key**  deliberately 可写在 `schedule.js` 并随 `index.html` 发布；在 **RLS 已正确配置** 的前提下，匿名用户无法读写他人数据，也无法绕过策略批量访问。
-- **切勿** 将 **service_role** key 写入仓库或前端；该密钥仅用于受信任的服务端环境。
-
-### 邮箱登录排查
-
-- 前端直接调用 Auth REST API，回跳地址通过 `/auth/v1/otp?redirect_to=...` 传递，必须保留 `/yimiaojilu/` 项目路径。
-- Supabase 默认邮件服务每个项目每小时只支持 2 封邮件，并限制收件人为项目成员。遇到 `over_email_send_rate_limit` 时等待额度恢复，连续重试无法解决；正式使用需要在 Authentication → Emails → SMTP Settings 配置自定义 SMTP。
-- 邮件链接为一次性链接。配置变更不会更新旧邮件；请使用新邮件中的链接。邮件安全扫描也可能提前消耗链接。
-- 页面会保留发送结果，区分邮件额度限制、短时间频繁请求、邮箱问题和网络失败。
-- 使用 `node auth-test.js` 检查 REST 回跳参数和失败提示，无需实际发邮件。
-
+- 前端使用的 **anon（公开）key** 按设计可写在 `schedule.js` 并随 `index.html` 发布；在 **RLS 已正确配置** 的前提下，匿名用户无法读写他人数据，也无法绕过策略批量访问。
+- **切勿** 将 **service_role** key、**Resend API key** 或其它 SMTP 密码写入仓库或前端；这些密钥只应保存在 Supabase 控制台或 Resend 控制台。
 
 ### Authentication → URL configuration（必填）
 
@@ -130,11 +122,87 @@ create policy "vaccine_data_own_row" on public.vaccine_data
 
 Magic link 登录后会跳回当前站点，应用从 URL hash 解析 `access_token` / `refresh_token`。
 
-### 邮件与验证码模板
+### 发信：Resend 自定义 SMTP（当前配置）
 
-- Supabase **内置 SMTP** 有速率限制（约 **每小时少量邮件**），开发或多人测试时可能触达上限。
-- 可在 **Project Settings → Authentication → SMTP** 配置自定义 SMTP（例如 [Resend](https://resend.com/)）以提高配额与送达率。
-- 若使用 **6 位 OTP**，请在 **Authentication → Email Templates** 的邮件正文中包含验证码占位符 **`{{ .Token }}`**，否则用户收不到可输入的验证码。
+本项目通过 [Resend](https://resend.com/) 作为 Supabase Auth 的自定义 SMTP，用于 magic link 与 OTP 邮件。**Resend API key 仅填写在 Supabase 中，不会也不应出现在本仓库。**
+
+在 Supabase **Project Settings → Authentication → SMTP Settings** 中配置：
+
+| 项 | 值 |
+|----|-----|
+| **Enable custom SMTP** | 开启 |
+| **Host** | `smtp.resend.com` |
+| **Port** | `465` |
+| **Username** | `resend` |
+| **Password** | 你的 Resend API key（以 `re_` 开头） |
+| **Sender email** | 已在 Resend 中验证的发件地址（域名需在 Resend 完成 DNS 验证） |
+
+随后在 **Authentication → Rate Limits** 中适当提高 **Email sent per hour**（在 Resend 与 Supabase 两侧限额内按需调整）。
+
+**未配置自定义 SMTP 时**：Supabase 内置邮差仅适合极少量测试（约每小时数封且常限制为项目成员），多人使用或频繁登录会很快触达 `over_email_send_rate_limit`。**上述限制仅适用于未启用自定义 SMTP 的情况。**
+
+**Resend 免费档**：通常提供每日/每月发送量上限（具体以 Resend 官网与控制台为准）；超出后需升级套餐或等待额度重置。生产环境请同时关注 Resend 与 Supabase 两侧的速率限制。
+
+### 邮件模板与登录排查
+
+- 若使用 **6 位 OTP**，请在 **Authentication → Email Templates** 正文中包含 **`{{ .Token }}`**，否则用户无法看到验证码。
+- Magic link 为一次性链接；请使用最新邮件中的链接。企业邮件安全扫描可能提前消耗链接。
+- 前端通过 `/auth/v1/otp?redirect_to=...` 传递回跳地址，Redirect URL 须包含 `/yimiaojilu/` 路径。
+- 可使用 `node auth-test.js` 检查 REST 回跳参数与错误提示（无需实际发信）。
+
+---
+
+## 导入与导出
+
+侧栏 **工具** 区提供两种导出方式；**导入备份** 会自动识别文件格式。
+
+| 操作 | 说明 |
+|------|------|
+| **导出档案** | 仅当前选中孩子，单档案 JSON（可与其它工具互通） |
+| **导出备份** | 整份应用状态 `{ children, cur }`，含所有孩子 |
+| **导入备份** | 见下方支持的三种格式 |
+
+### 单孩子档案格式（「导出档案」）
+
+```json
+{
+  "profile": {
+    "name": "浔宝",
+    "birth": "2026-05-11",
+    "sex": "boy",
+    "je": "live",
+    "hepa": "live",
+    "id": "baby-f61df079ea8b",
+    "addons": ["pentavalent", "rotavirus3"]
+  },
+  "records": {
+    "bcg-1": { "date": "2026-05-11", "clinic": "", "note": "" },
+    "hepb-1": { "date": "2026-05-11", "clinic": "", "note": "" },
+    "penta-1": { "date": "2026-07-22", "clinic": "", "note": "" },
+    "rota3-1": { "date": "2026-08-05", "clinic": "", "note": "" }
+  },
+  "exportedAt": "2026-10-12T07:29:56.743Z"
+}
+```
+
+- **`profile.addons`**：自费项标识（如 `pentavalent` → 五联、`rotavirus3` → 三价轮状）。
+- **`records`**：键为 `{疫苗简称}-{剂次}`（1 起），如 `penta-2`、`rota3-3`；未知剂次或非法日期会**跳过**并在浏览器控制台给出警告。
+- 完整样例见仓库 [`test/fixtures/xunbao-export.json`](test/fixtures/xunbao-export.json)。
+
+### 导入时接受的格式
+
+1. **完整备份**：`{ "children": [...], "cur": "..." }` — 与「导出备份」一致，**整份替换**当前本机/云同步状态。
+2. **单孩子档案**：上表 `{ profile, records, exportedAt }` — 合并进现有状态。
+3. **档案数组**：`[ { profile, records, ... }, ... ]` — 按顺序逐个导入。
+
+### 冲突处理（单孩子 / 数组）
+
+若 `profile.id` 与已有孩子相同，会提示选择：
+
+- **覆盖**：用导入数据替换该孩子的资料与全部接种记录。
+- **合并**：保留已有记录，仅追加导入中 **疫苗 ID + 日期** 不重复的条目，并合并自费勾选等信息。
+
+导入成功后会选中刚导入的孩子；若已登录云同步，会自动 debounce 上传。
 
 ---
 
@@ -164,7 +232,9 @@ node e2e.js
 | `template.html` | 页面结构、样式与 UI 脚本（含 Supabase `fetch` 同步） |
 | `schedule.js` | 疫苗程序数据、下一针/时间轴/ICS 逻辑及可单测的同步辅助函数 |
 | `build.js` | `node build.js`：将 `schedule.js` 内联替换 `template.html` 中的占位符 |
-| `test.js` | Node 单元测试 |
+| `test.js` | Node 单元测试（含档案导入样例） |
+| `test/fixtures/` | 导入格式样例 JSON |
+| `auth-test.js` | Auth REST / 回跳参数检查（不发信） |
 | `e2e.js` | Puppeteer 端到端测试（系统 Chrome） |
 | `shots.js` / `repro.js` | 截图与复现辅助脚本 |
 | `package.json` | 依赖（主要为 `puppeteer-core`，仅开发/测试用） |
