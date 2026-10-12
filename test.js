@@ -83,11 +83,11 @@ assert.equal(conv.child.selfPaid.penta,true);assert.equal(conv.child.selfPaid.rv
 const imp=VT.importIntoState({children:[],cur:null},xunbao);assert.ok(imp.ok);
 assert.equal(imp.state.children.length,1);assert.equal(imp.state.children[0].records.length,9);
 const ch=imp.state.children[0];
-let p=VT.seriesPlan(ch,T);
-assert.equal(p.find(s=>s.id==='dtap').status,'covered');
-assert.equal(p.find(s=>s.id==='polio').status,'covered');
-assert.equal(p.find(s=>s.id==='hib').status,'covered');
-assert.equal(p.find(s=>s.id==='penta').given,3);
+{const plan=VT.seriesPlan(ch,T);
+assert.equal(plan.find(s=>s.id==='dtap').status,'covered');
+assert.equal(plan.find(s=>s.id==='polio').status,'covered');
+assert.equal(plan.find(s=>s.id==='hib').given,3);
+assert.equal(plan.find(s=>s.id==='penta').given,3);}
 const round=VT.exportSingleChild(ch);
 assert.equal(round.profile.id,'baby-f61df079ea8b');
 assert.equal(round.profile.addons.includes('pentavalent'),true);
