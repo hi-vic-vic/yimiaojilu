@@ -35,8 +35,13 @@ button,select,input{font:inherit;color:inherit}
 .top{position:sticky;top:0;z-index:2;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .top-in{max-width:1180px;margin:0 auto;height:60px;padding:0 20px;display:flex;align-items:center;gap:14px}
 .brand{font-weight:700;font-size:18px;letter-spacing:.02em;color:var(--accent)}.brand small{font-weight:400;color:var(--muted);font-size:13px;margin-left:8px;letter-spacing:0}
-.picker{margin-left:auto;display:flex;align-items:center;gap:6px}
+.sync{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;color:var(--muted);flex-wrap:wrap;justify-content:flex-end;max-width:min(52vw,420px)}
+.sync .dot{width:8px;height:8px;border-radius:50%;background:var(--idle);flex:none}
+.sync .dot.ok{background:var(--ok)}.sync .dot.busy{background:var(--soon)}.sync .dot.err{background:var(--late)}.sync .dot.off{background:var(--faint)}
+.sync .em{color:var(--text);font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.picker{display:flex;align-items:center;gap:6px;flex-shrink:0}
 .picker select{min-height:40px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--surface);padding:0 10px;max-width:46vw}
+.top-in{flex-wrap:wrap;height:auto;min-height:60px;padding-top:8px;padding-bottom:8px}
 .wrap{max-width:1180px;margin:0 auto;padding:20px 20px 56px}
 .notice{border-left:3px solid var(--soon);background:var(--soon-soft);padding:10px 14px;border-radius:0 var(--r-ctl) var(--r-ctl) 0;font-size:13.5px;color:var(--text);margin-bottom:12px;max-width:80ch}
 .notice.info{border-color:var(--accent);background:var(--accent-soft)}
@@ -111,7 +116,7 @@ dialog::backdrop{background:#0e1a1459}
 .err{color:var(--late)}
 @media (max-width:860px){.grid,.cols,.hello{grid-template-columns:1fr}.hello{padding:24px}.aside{order:-1}}
 @media (max-width:767px){
- .top-in{padding:0 14px;gap:8px}.brand small{display:none}.wrap{padding:14px 14px 48px}
+ .top-in{padding:0 14px;gap:8px}.brand small{display:none}.sync{max-width:none;width:100%;order:3;justify-content:flex-start;margin-left:0;padding-top:4px}.wrap{padding:14px 14px 48px}
  .panel{padding:16px}.next{padding:20px;grid-template-columns:1fr}.next .when{font-size:44px;border-right:0;padding:0 0 12px;border-bottom:1px solid color-mix(in srgb,var(--accent-ink) 30%,transparent);margin-bottom:8px}
  .hello h1{font-size:26px}.v{grid-template-columns:1fr}.v .act{grid-row:auto;grid-column:1;justify-self:start;margin-top:6px}
  dialog{width:100vw;max-width:100vw;margin:auto 0 0;border-radius:var(--r-panel) var(--r-panel) 0 0}
@@ -119,6 +124,7 @@ dialog::backdrop{background:#0e1a1459}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style></head><body>
 <header class="top"><div class="top-in"><div class="brand">接种簿<small>中国儿童疫苗记录</small></div>
+<div class="sync" id="syncBar"><span class="dot off" id="syncDot" aria-hidden="true"></span><span id="syncText">云同步未登录</span><button class="btn sm" type="button" id="syncBtn" onclick="syncAction()">登录同步</button></div>
 <div class="picker"><select id="childSel" aria-label="选择孩子"></select><button class="btn sm" onclick="editChild()" aria-label="添加孩子">添加</button></div></div></header>
 <main class="wrap">
 <p class="notice" role="note"><b>仅供参考，不构成医疗建议。</b>接种时间、补种和疫苗选择请以当地接种门诊、医生意见及疫苗说明书为准。</p>
@@ -232,17 +238,112 @@ function upcoming(child,today){const T=today?parse(today):parse(new Date().toISO
 function timeline(child){const b=parse(child.birth),items=[];for(const v of V){if(v.catchupOnly||(v.sexOnly&&child.sex&&child.sex!==v.sexOnly&&v.nip))continue;v.doses.forEach((d,i)=>items.push({vid:v.id,dose:i,name:v.name,label:d.label,nip:v.nip,date:fmt(addAge(b,d.age)),age:d.age}));}return items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(b.nip-a.nip));}
 function ics(child,today){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//vaccine-tracker//CN','CALSCALE:GREGORIAN'];upcoming(child,today).forEach((s,i)=>{const d=s.due.replace(/-/g,'');L.push('BEGIN:VEVENT','UID:'+child.id+'-'+s.id+'-'+d+'@vt','DTSTAMP:'+d+'T000000Z','DTSTART;VALUE=DATE:'+d,'SUMMARY:'+child.name+' 接种 '+s.name+' '+s.nextLabel,'DESCRIPTION:仅供参考，请以接种门诊安排为准','BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:疫苗接种提醒','END:VALARM','END:VEVENT');});L.push('END:VCALENDAR');return L.join('\r\n');}
 function ageText(birth,today){const b=parse(birth),t=today?parse(today):new Date();let m=(t.getUTCFullYear()-b.getUTCFullYear())*12+t.getUTCMonth()-b.getUTCMonth();if(t.getUTCDate()<b.getUTCDate())m--;if(m<1)return Math.floor((t-b)/DAY)+'天';return m<24?m+'月龄':Math.floor(m/12)+'岁'+(m%12?m%12+'个月':'');}
-const API={isSelected,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt};
+// ===== 云同步（Supabase REST，无 supabase-js）=====
+const SUPABASE_URL='https://hdvcfesguugxfapurfif.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkdmNmZXNndXVneGZhcHVyZmlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3ODE2NjUsImV4cCI6MjEwNzM1NzY2NX0.AjU474X2k3uzUdA8VkNvqfNC5qsiRopYh_rC7rVamY8';
+function b64urlDecodeJson(seg){
+ const pad='='.repeat((4-seg.length%4)%4),b64=(seg+pad).replace(/-/g,'+').replace(/_/g,'/');
+ const raw=typeof Buffer!=='undefined'?Buffer.from(b64,'base64').toString('utf8'):(typeof atob!=='undefined'?atob(b64):'');
+ return raw?JSON.parse(raw):null;
+}
+function decodeJwtPayload(token){const p=String(token||'').split('.');return p.length>=2?b64urlDecodeJson(p[1]):null;}
+function normalizeAppState(d){
+ if(!d||typeof d!=='object'||!Array.isArray(d.children))return null;
+ const cur=d.cur!=null&&d.children.some(c=>c&&c.id===d.cur)?d.cur:(d.children[0]?.id??null);
+ return JSON.parse(JSON.stringify({children:d.children,cur}));
+}
+function appStateFingerprint(d){const n=normalizeAppState(d);return n?JSON.stringify(n):'';}
+function appStatesEqual(a,b){return appStateFingerprint(a)===appStateFingerprint(b);}
+function isCloudEmpty(state){const n=normalizeAppState(state);return!n||!n.children.length;}
+function pickAppState(local,cloud,choice){
+ const L=normalizeAppState(local),C=normalizeAppState(cloud);
+ if(choice==='cloud'&&C)return C;if(choice==='local'&&L)return L;
+ return L||C||{children:[],cur:null};
+}
+function parseAuthHash(hash){
+ const q=String(hash||'').replace(/^#/,'');
+ if(!q)return null;
+ const p=new URLSearchParams(q),access=p.get('access_token'),refresh=p.get('refresh_token');
+ if(!access)return null;
+ const pl=decodeJwtPayload(access)||{};
+ return{access_token:access,refresh_token:refresh||'',expires_at:(pl.exp||0)*1e3,user:{id:pl.sub,email:pl.email||''}};
+}
+function sessionFromAuthResponse(body){
+ if(!body||!body.access_token)return null;
+ const pl=decodeJwtPayload(body.access_token)||{};
+ return{access_token:body.access_token,refresh_token:body.refresh_token||'',expires_at:Date.now()+(body.expires_in||3600)*1e3,user:{id:pl.sub||body.user?.id,email:pl.email||body.user?.email||''}};
+}
+function needsTokenRefresh(sess,skewMs=120e3){return!sess||!sess.expires_at||Date.now()>=sess.expires_at-skewMs;}
+const API={isSelected,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
+ SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh};
 if(typeof module!=='undefined')module.exports=API;else root.VT=API;
 })(this);
 
 </script>
 <script>
-const KEY='vt_data_v1';let PERSIST=true,tab='dash';
+const KEY='vt_data_v1',AUTH_KEY='vt_auth_v1';let PERSIST=true,tab='dash';
 const store=(()=>{try{const ls=window.localStorage,t='__vt_t';ls.setItem(t,'1');ls.removeItem(t);return ls}catch(e){PERSIST=false;const m={};return{getItem:k=>k in m?m[k]:null,setItem:(k,v)=>{m[k]=String(v)}}}})();
-function load(){try{const d=JSON.parse(store.getItem(KEY)||'null');if(d&&Array.isArray(d.children))return d}catch(e){console.warn('数据读取失败',e)}return{children:[],cur:null}}
+function load(){try{const d=JSON.parse(store.getItem(KEY)||'null');const n=VT.normalizeAppState(d);if(n)return n}catch(e){console.warn('数据读取失败',e)}return{children:[],cur:null}}
 let S=load();if(S.children.length&&!S.children.some(c=>c.id===S.cur))S.cur=S.children[0].id;
-const save=()=>{try{store.setItem(KEY,JSON.stringify(S))}catch(e){PERSIST=false}};const $=id=>document.getElementById(id);
+let authSession=null,syncStatus='off',syncBusy=false,cloudSyncTimer=null,pendingMerge=null;
+const sb=()=>({url:VT.SUPABASE_URL,key:VT.SUPABASE_ANON_KEY});
+function loadSession(){try{const s=JSON.parse(store.getItem(AUTH_KEY)||'null');return s&&s.access_token?s:null}catch(e){return null}}
+function persistSession(s){if(s)store.setItem(AUTH_KEY,JSON.stringify(s));else store.removeItem(AUTH_KEY)}
+function saveLocal(){try{store.setItem(KEY,JSON.stringify(S))}catch(e){PERSIST=false}}
+const save=()=>{saveLocal();if(authSession)scheduleCloudSync()};
+const $=id=>document.getElementById(id);
+function setSyncStatus(st,msg){syncStatus=st;const dot=$('syncDot'),tx=$('syncText');if(dot){dot.className='dot '+(st==='ok'?'ok':st==='busy'?'busy':st==='err'?'err':'off')}if(tx)tx.textContent=msg}
+function renderSyncBar(){
+ const btn=$('syncBtn');if(!btn)return;
+ if(authSession){btn.textContent='退出';btn.classList.remove('p');$('syncText').innerHTML=`<span class="em" title="${esc(authSession.user.email||'')}">${esc(authSession.user.email||'已登录')}</span> · ${syncStatus==='busy'?'同步中…':syncStatus==='ok'?'已同步':syncStatus==='err'?'同步失败':navigator.onLine?'待同步':'离线'}`}
+ else{btn.textContent='登录同步';btn.classList.add('p');setSyncStatus('off','云同步未登录（可选）')}
+}
+async function sbFetch(path,opts={}){const h=opts.headers||{};h.apikey=sb().key;if(authSession?.access_token)h.Authorization='Bearer '+authSession.access_token;if(opts.body&&!h['Content-Type'])h['Content-Type']='application/json';const r=await fetch(sb().url+path,{...opts,headers:h});return r}
+async function ensureFreshToken(){if(!authSession||!VT.needsTokenRefresh(authSession))return authSession;
+ const r=await sbFetch('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:JSON.stringify({refresh_token:authSession.refresh_token})});
+ if(!r.ok)throw new Error('登录已过期');const b=await r.json();authSession=VT.sessionFromAuthResponse(b)||authSession;persistSession(authSession);return authSession}
+async function fetchCloudState(){await ensureFreshToken();const uid=authSession.user.id;
+ const r=await sbFetch('/rest/v1/vaccine_data?user_id=eq.'+encodeURIComponent(uid)+'&select=data,updated_at');
+ if(!r.ok)throw new Error('读取云端失败');const rows=await r.json();if(!rows.length)return null;return VT.normalizeAppState(rows[0].data)}
+async function pushCloudState(){if(!authSession)return;await ensureFreshToken();const uid=authSession.user.id,body={user_id:uid,data:VT.normalizeAppState(S)||{children:[],cur:null},updated_at:new Date().toISOString()};
+ const r=await sbFetch('/rest/v1/vaccine_data',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(body)});
+ if(!r.ok)throw new Error('上传失败')}
+function scheduleCloudSync(){if(!authSession)return;clearTimeout(cloudSyncTimer);setSyncStatus(navigator.onLine?'busy':'off',undefined);renderSyncBar();
+ cloudSyncTimer=setTimeout(()=>runCloudSync().catch(e=>{console.warn(e);setSyncStatus('err',undefined);renderSyncBar();toast('云同步失败，已保留本地数据')}),900)}
+async function runCloudSync(){if(!authSession||syncBusy)return;syncBusy=true;setSyncStatus('busy',undefined);renderSyncBar();try{
+ if(!navigator.onLine)throw new Error('offline');await pushCloudState();setSyncStatus('ok',undefined)}finally{syncBusy=false;renderSyncBar()}}
+function applyState(next){S=VT.normalizeAppState(next)||{children:[],cur:null};if(S.children.length&&!S.children.some(c=>c.id===S.cur))S.cur=S.children[0].id;saveLocal()}
+function askMerge(local,cloud){return new Promise(res=>{
+ $('dform').innerHTML=`<h3>选择保留哪份数据</h3><p class="muted">本机与云端都有记录且内容不一致。请选择要保留的一份，另一份将被覆盖。</p>
+ <p class="faint">本机：${local.children.length} 个孩子 · 云端：${cloud.children.length} 个孩子</p>
+ <div class="d-acts"><button class="btn" type="submit" formnovalidate value="c">取消</button><button class="btn p" type="button" id="mergeLocal">保留本机</button><button class="btn p" type="button" id="mergeCloud">保留云端</button></div>`;
+ const finish=c=>{$('dlg').onclose=null;$('dlg').close();res(c)};
+ $('mergeLocal').onclick=()=>finish('local');$('mergeCloud').onclick=()=>finish('cloud');
+ $('dlg').onclose=()=>res(null);$('dlg').showModal();
+})}
+async function reconcileAfterLogin(){const local=S;let cloud=null;try{cloud=await fetchCloudState()}catch(e){setSyncStatus('err',undefined);renderSyncBar();toast('无法读取云端，暂用本机数据');return}
+ if(!cloud||VT.isCloudEmpty(cloud)){applyState(local);await runCloudSync();return}
+ if(VT.appStatesEqual(local,cloud)){applyState(local);setSyncStatus('ok',undefined);renderSyncBar();return}
+ const choice=await askMerge(local,cloud);if(!choice)return;applyState(VT.pickAppState(local,cloud,choice));save();await runCloudSync();render()}
+async function consumeAuthHash(){const h=location.hash;if(!h||(!h.includes('access_token')&&!h.includes('error')))return null;
+ if(h.includes('error=')){history.replaceState(null,'',location.pathname+location.search);toast('登录链接无效或已过期');return null}
+ const sess=VT.parseAuthHash(h);if(sess){authSession=sess;persistSession(authSession);history.replaceState(null,'',location.pathname+location.search);toast('已登录');return sess}return null}
+async function initAuth(){await consumeAuthHash();authSession=loadSession();if(authSession){try{await reconcileAfterLogin()}catch(e){console.warn(e);setSyncStatus('err',undefined);toast('同步未完成，可稍后在联网时重试')}}renderSyncBar()}
+function syncAction(){if(authSession){if(confirm('退出云同步？本机数据仍会保留。')){authSession=null;persistSession(null);clearTimeout(cloudSyncTimer);setSyncStatus('off',undefined);renderSyncBar();toast('已退出')}}else openLogin()}
+function openLogin(){dialog(`<h3>邮箱登录 / 云同步</h3><p class="muted">登录后可在多设备间同步备份。仍可在未登录时仅使用本机存储。</p>
+<label class="f"><span>邮箱</span><input type="email" name="email" required autocomplete="email" placeholder="you@example.com"></label>
+<button class="btn p" type="button" style="width:100%;margin-top:14px" onclick="sendMagicLink(this)">发送登录链接</button>
+<p class="faint" style="margin:16px 0 8px">或输入邮件中的 6 位验证码</p>
+<label class="f"><span>验证码</span><input name="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="123456"></label>
+<button class="btn" type="button" style="width:100%;margin-top:8px" onclick="verifyOtp(this)">确认验证码</button>`,null,'关闭')}
+async function sendMagicLink(btn){const f=$('dform'),email=(new FormData(f)).get('email');if(!email)return;btn.disabled=true;
+ try{const r=await fetch(sb().url+'/auth/v1/otp',{method:'POST',headers:{apikey:sb().key,'Content-Type':'application/json'},body:JSON.stringify({email,create_user:true,options:{email_redirect_to:location.origin+location.pathname}})});
+ if(!r.ok)throw 0;toast('登录链接已发送，请查收邮件')}catch(e){toast('发送失败，请检查邮箱或稍后再试')}finally{btn.disabled=false}}
+async function verifyOtp(btn){const f=$('dform'),email=(new FormData(f)).get('email'),token=(new FormData(f)).get('otp');if(!email||!token||String(token).length<6)return toast('请填写邮箱和 6 位验证码');btn.disabled=true;
+ try{const r=await fetch(sb().url+'/auth/v1/verify',{method:'POST',headers:{apikey:sb().key,'Content-Type':'application/json'},body:JSON.stringify({email,token,type:'email'})});
+ if(!r.ok)throw 0;authSession=VT.sessionFromAuthResponse(await r.json());if(!authSession)throw 0;persistSession(authSession);$('dlg').close();toast('已登录');await reconcileAfterLogin();render()}catch(e){toast('验证码错误或已过期')}finally{btn.disabled=false}}
+window.addEventListener('online',()=>{if(authSession){setSyncStatus('busy',undefined);renderSyncBar();scheduleCloudSync()}});
+window.addEventListener('offline',()=>{if(authSession){setSyncStatus('off',undefined);renderSyncBar()}});
 const cur=()=>S.children.find(c=>c.id===S.cur);
 // 展示层：统一转义，并把长破折号/区间号换成普通连字符（数据文件保持原文不改）
 const esc=s=>String(s??'').replace(/[—–]/g,'-').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -257,7 +358,8 @@ function render(){try{renderInner()}catch(e){console.error(e);$('main').innerHTM
 const DEMO=()=>({cur:'c1',children:[{id:'c1',name:'林小禾(示例)',birth:'2026-02-12',sex:'M',records:[{vid:'hepb',date:'2026-02-12'},{vid:'bcg',date:'2026-02-12'},{vid:'hepb',date:'2026-03-12'},{vid:'polio',date:'2026-04-12'},{vid:'polio',date:'2026-05-12'},{vid:'dtap',date:'2026-05-12'},{vid:'dtap',date:'2026-06-12'}]}]});
 function loadDemo(){S=DEMO();save();render()}
 function renderInner(){
- $('persist').hidden=PERSIST;
+ $('persist').hidden=PERSIST||!!authSession;
+ renderSyncBar();
  $('childSel').innerHTML=S.children.map(c=>`<option value="${c.id}" ${c.id===S.cur?'selected':''}>${esc(c.name)}</option>`).join('')||'<option>还没有孩子</option>';
  $('childSel').onchange=e=>{S.cur=e.target.value;save();render()};
  const c=cur();
@@ -307,6 +409,6 @@ function dl(name,text,type){const a=document.createElement('a');a.href=URL.creat
 function exportJSON(){dl('疫苗记录备份-'+today()+'.json',JSON.stringify(S,null,2),'application/json')}
 function importJSON(inp){const f=inp.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if(!Array.isArray(d.children))throw 0;S=d;if(!S.children.some(c=>c.id===S.cur))S.cur=S.children[0]?.id||null;save();render();toast('已导入 '+S.children.length+' 个孩子的记录')}catch(e){toast('文件格式不正确，请选择本工具导出的备份')}});inp.value=''}
 function exportICS(){const c=cur();if(c)dl(c.name+'-疫苗计划.ics',VT.ics(c,today()),'text/calendar')}
-try{if(/demo/.test(location.search+location.hash)&&!S.children.length){S=DEMO();save()}}catch(e){}
-render();
+try{if(/demo/.test(location.search)&&!S.children.length){S=DEMO();save()}}catch(e){}
+(async()=>{await initAuth();render()})();
 </script></body></html>

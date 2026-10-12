@@ -99,6 +99,43 @@ function upcoming(child,today){const T=today?parse(today):parse(new Date().toISO
 function timeline(child){const b=parse(child.birth),items=[];for(const v of V){if(v.catchupOnly||(v.sexOnly&&child.sex&&child.sex!==v.sexOnly&&v.nip))continue;v.doses.forEach((d,i)=>items.push({vid:v.id,dose:i,name:v.name,label:d.label,nip:v.nip,date:fmt(addAge(b,d.age)),age:d.age}));}return items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(b.nip-a.nip));}
 function ics(child,today){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//vaccine-tracker//CN','CALSCALE:GREGORIAN'];upcoming(child,today).forEach((s,i)=>{const d=s.due.replace(/-/g,'');L.push('BEGIN:VEVENT','UID:'+child.id+'-'+s.id+'-'+d+'@vt','DTSTAMP:'+d+'T000000Z','DTSTART;VALUE=DATE:'+d,'SUMMARY:'+child.name+' 接种 '+s.name+' '+s.nextLabel,'DESCRIPTION:仅供参考，请以接种门诊安排为准','BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:疫苗接种提醒','END:VALARM','END:VEVENT');});L.push('END:VCALENDAR');return L.join('\r\n');}
 function ageText(birth,today){const b=parse(birth),t=today?parse(today):new Date();let m=(t.getUTCFullYear()-b.getUTCFullYear())*12+t.getUTCMonth()-b.getUTCMonth();if(t.getUTCDate()<b.getUTCDate())m--;if(m<1)return Math.floor((t-b)/DAY)+'天';return m<24?m+'月龄':Math.floor(m/12)+'岁'+(m%12?m%12+'个月':'');}
-const API={isSelected,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt};
+// ===== 云同步（Supabase REST，无 supabase-js）=====
+const SUPABASE_URL='https://hdvcfesguugxfapurfif.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkdmNmZXNndXVneGZhcHVyZmlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3ODE2NjUsImV4cCI6MjEwNzM1NzY2NX0.AjU474X2k3uzUdA8VkNvqfNC5qsiRopYh_rC7rVamY8';
+function b64urlDecodeJson(seg){
+ const pad='='.repeat((4-seg.length%4)%4),b64=(seg+pad).replace(/-/g,'+').replace(/_/g,'/');
+ const raw=typeof Buffer!=='undefined'?Buffer.from(b64,'base64').toString('utf8'):(typeof atob!=='undefined'?atob(b64):'');
+ return raw?JSON.parse(raw):null;
+}
+function decodeJwtPayload(token){const p=String(token||'').split('.');return p.length>=2?b64urlDecodeJson(p[1]):null;}
+function normalizeAppState(d){
+ if(!d||typeof d!=='object'||!Array.isArray(d.children))return null;
+ const cur=d.cur!=null&&d.children.some(c=>c&&c.id===d.cur)?d.cur:(d.children[0]?.id??null);
+ return JSON.parse(JSON.stringify({children:d.children,cur}));
+}
+function appStateFingerprint(d){const n=normalizeAppState(d);return n?JSON.stringify(n):'';}
+function appStatesEqual(a,b){return appStateFingerprint(a)===appStateFingerprint(b);}
+function isCloudEmpty(state){const n=normalizeAppState(state);return!n||!n.children.length;}
+function pickAppState(local,cloud,choice){
+ const L=normalizeAppState(local),C=normalizeAppState(cloud);
+ if(choice==='cloud'&&C)return C;if(choice==='local'&&L)return L;
+ return L||C||{children:[],cur:null};
+}
+function parseAuthHash(hash){
+ const q=String(hash||'').replace(/^#/,'');
+ if(!q)return null;
+ const p=new URLSearchParams(q),access=p.get('access_token'),refresh=p.get('refresh_token');
+ if(!access)return null;
+ const pl=decodeJwtPayload(access)||{};
+ return{access_token:access,refresh_token:refresh||'',expires_at:(pl.exp||0)*1e3,user:{id:pl.sub,email:pl.email||''}};
+}
+function sessionFromAuthResponse(body){
+ if(!body||!body.access_token)return null;
+ const pl=decodeJwtPayload(body.access_token)||{};
+ return{access_token:body.access_token,refresh_token:body.refresh_token||'',expires_at:Date.now()+(body.expires_in||3600)*1e3,user:{id:pl.sub||body.user?.id,email:pl.email||body.user?.email||''}};
+}
+function needsTokenRefresh(sess,skewMs=120e3){return!sess||!sess.expires_at||Date.now()>=sess.expires_at-skewMs;}
+const API={isSelected,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
+ SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh};
 if(typeof module!=='undefined')module.exports=API;else root.VT=API;
 })(this);
