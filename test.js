@@ -54,4 +54,23 @@ assert.equal(g(p,'rv3').selected,true);assert.equal(g(p,'rv3').due,'2026-10-15')
 // 旧备份（无 selfPaid）兼容
 assert.doesNotThrow(()=>VT.seriesPlan({birth:'2026-01-01',records:[{vid:'pcv13',date:'2026-03-01'}]},T));
 assert.equal(VT.seriesPlan({birth:'2026-01-01',records:[{vid:'pcv13',date:'2026-03-01'}]},T).find(s=>s.id==='pcv13').selected,true);
+// 云同步 / 合并
+assert.equal(VT.normalizeAppState(null),null);
+assert.deepEqual(VT.normalizeAppState({children:[],cur:'x'}),{children:[],cur:null});
+const A={children:[{id:'c1',name:'a',birth:'2020-01-01',records:[]}],cur:'c1'};
+const B={children:[{id:'c2',name:'b',birth:'2021-01-01',records:[]}],cur:'c2'};
+assert.ok(VT.isCloudEmpty({children:[],cur:null}));
+assert.ok(!VT.isCloudEmpty(A));
+assert.ok(!VT.appStatesEqual(A,B));
+assert.ok(VT.appStatesEqual(A,{...A,cur:'c1'}));
+assert.deepEqual(VT.pickAppState(A,B,'local'),A);
+assert.deepEqual(VT.pickAppState(A,B,'cloud'),B);
+const fakePayload=Buffer.from(JSON.stringify({sub:'u1',email:'t@e.com',exp:9999999999})).toString('base64url');
+const tok='h.'+fakePayload+'.s';
+assert.equal(VT.decodeJwtPayload(tok).sub,'u1');
+const hash='#access_token='+encodeURIComponent(tok)+'&refresh_token=rr';
+assert.equal(VT.parseAuthHash(hash).user.id,'u1');
+assert.ok(VT.sessionFromAuthResponse({access_token:tok,refresh_token:'rr',expires_in:3600}).user.email==='t@e.com');
+assert.ok(VT.needsTokenRefresh({expires_at:Date.now()+60e3}));
+assert.ok(!VT.needsTokenRefresh({expires_at:Date.now()+600e3}));
 console.log('All tests passed');
