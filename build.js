@@ -1,0 +1,1 @@
+const fs=require('fs');const t=fs.readFileSync(__dirname+'/template.html','utf8');fs.writeFileSync(__dirname+'/index.html',t.replace('/*__SCHEDULE__*/',()=>fs.readFileSync(__dirname+'/schedule.js','utf8')));
