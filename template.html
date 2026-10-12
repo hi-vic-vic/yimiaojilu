@@ -247,7 +247,7 @@ function renderInner(){
  const spPanel=`<section class="panel" id="spPlan"><div class="sec-h"><h3>自费疫苗计划</h3><span class="faint">勾选后才会提醒</span></div>
   <div class="opts">${sp.map(s=>{const rec=(c.records||[]).some(r=>r.vid===s.id);return `<label class="opt ${s.selected?'on':''}"><input type="checkbox" data-sp="${s.id}" ${s.selected?'checked':''} onchange="toggleSP('${s.id}',this.checked)"><span>${esc(s.name)}${rec?'<small>已有接种记录</small>':s.excl?'<small>轮状疫苗二选一</small>':''}</span></label>`}).join('')}</div>
   <p class="faint" style="margin-top:10px">选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。</p></section>`;
- const tools=`<div class="tools"><button class="btn sm" onclick="editChild(cur())">编辑资料</button><button class="btn sm" onclick="exportICS()">导出日历</button><button class="btn sm" onclick="exportJSON()">导出备份</button><button class="btn sm" onclick="$('imp').click()">导入备份</button><button class="btn sm link danger" onclick="delChild()">删除孩子</button></div>`;
+ const tools=`<div class="tools"><button class="btn sm" onclick="editChild(cur())">编辑资料</button><button class="btn sm" onclick="exportICS()">导出日历</button><button class="btn sm" onclick="exportChildJSON()">导出档案</button><button class="btn sm" onclick="exportJSON()">导出备份</button><button class="btn sm" onclick="$('imp').click()">导入备份</button><button class="btn sm link danger" onclick="delChild()">删除孩子</button></div>`;
  const cnt=k=>plan.filter(s=>s.nip&&s.status===k).length;
  const aside=`<aside class="panel aside who"><h2>${esc(c.name)}</h2><p class="muted">${c.sex==='F'?'女孩':'男孩'}，${VT.ageText(c.birth,today())}<span class="faint">（${c.birth} 出生）</span></p>
   <div class="nums"><div class="late"><b>${cnt('overdue')}</b><span>免费疫苗逾期</span></div><div class="soon"><b>${cnt('soon')}</b><span>30 天内到期</span></div><div><b>${cnt('done')}</b><span>免费疫苗已完成</span></div><div><b>${(c.records||[]).length}</b><span>接种记录</span></div></div>${tools}</aside>`;
@@ -274,7 +274,9 @@ function addRec(vid,i){const c=cur();if(!c)return;const r=i!=null?c.records[i]:{
 function delRec(i){if(confirm('删除这条记录？')){cur().records.splice(i,1);save();render()}}
 function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
 function exportJSON(){dl('疫苗记录备份-'+today()+'.json',JSON.stringify(S,null,2),'application/json')}
-function importJSON(inp){const f=inp.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if(!Array.isArray(d.children))throw 0;S=d;if(!S.children.some(c=>c.id===S.cur))S.cur=S.children[0]?.id||null;save();render();toast('已导入 '+S.children.length+' 个孩子的记录')}catch(e){toast('文件格式不正确，请选择本工具导出的备份')}});inp.value=''}
+function exportChildJSON(){const c=cur();if(!c)return toast('请先选择孩子');dl(c.name+'-接种档案-'+today()+'.json',JSON.stringify(VT.exportSingleChild(c),null,2),'application/json')}
+function importConflictChoice(ex){const ok=confirm('接种簿中已有「'+ex.name+'」（相同档案 ID）。\n\n确定 = 用导入数据覆盖该孩子全部记录\n取消 = 合并记录（日期不重复则保留）');return ok?'replace':'merge'}
+function importJSON(inp){const f=inp.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const r=VT.importIntoState(S,d,importConflictChoice);if(!r.ok)throw 0;S=r.state;S.cur=r.cur;if(!S.children.some(c=>c.id===S.cur))S.cur=S.children[0]?.id||null;save();render();toast(r.message);if(r.warnings&&r.warnings.length)console.warn('导入提示',r.warnings)}catch(e){toast('文件格式不正确，支持完整备份或单孩子 profile/records 档案')}}).finally(()=>{inp.value=''})}
 function exportICS(){const c=cur();if(c)dl(c.name+'-疫苗计划.ics',VT.ics(c,today()),'text/calendar')}
 try{if(/demo/.test(location.search)&&!S.children.length){S=DEMO();save()}}catch(e){}
 (async()=>{await initAuth();render()})();

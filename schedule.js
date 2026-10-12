@@ -135,7 +135,89 @@ function sessionFromAuthResponse(body){
  return{access_token:body.access_token,refresh_token:body.refresh_token||'',expires_at:Date.now()+(body.expires_in||3600)*1e3,user:{id:pl.sub||body.user?.id,email:pl.email||body.user?.email||''}};
 }
 function needsTokenRefresh(sess,skewMs=120e3){return!sess||!sess.expires_at||Date.now()>=sess.expires_at-skewMs;}
+// ===== 导入 / 导出（完整备份 + 单孩子 profile/records 格式）=====
+const ADDON_IMPORT={pentavalent:'penta',rotavirus3:'rv3',rotavirus5:'rv5'};
+const ADDON_EXPORT={penta:'pentavalent',rv3:'rotavirus3',rv5:'rotavirus5'};
+const DOSE_SLUG_IMPORT={rota3:'rv3',rota5:'rv5',pentavalent:'penta'};
+const DOSE_SLUG_EXPORT={rv3:'rota3',rv5:'rota5'};
+function exportDoseSlug(vid){return DOSE_SLUG_EXPORT[vid]||vid;}
+function importDoseSlug(slug){return DOSE_SLUG_IMPORT[slug]||slug;}
+function normalizeImportSex(s){const x=String(s||'').toLowerCase();if(x==='f'||x==='girl'||x==='女')return 'F';return 'M';}
+function exportProfileSex(sex){return sex==='F'?'girl':'boy';}
+function isValidRecordDate(s){if(!/^\d{4}-\d{2}-\d{2}$/.test(String(s||'')))return false;try{return fmt(parse(s))===s}catch(e){return false}}
+function vaccineById(vid){return V.find(x=>x.id===vid);}
+function parseDoseKey(key){
+ const m=String(key||'').match(/^(.+)-(\d+)$/);if(!m)return null;
+ const vid=importDoseSlug(m[1]),n=+m[2],v=vaccineById(vid);
+ if(!v||!Number.isInteger(n)||n<1||n>v.doses.length)return{ok:false,key,reason:'unknown_dose'};
+ return{ok:true,vid,doseIndex:n-1,key};
+}
+function convertSingleChildExport(raw){
+ if(!raw||typeof raw!=='object'||!raw.profile||typeof raw.records!=='object')return{ok:false,error:'not_single'};
+ const p=raw.profile;if(!p.birth||!isValidRecordDate(p.birth))return{ok:false,error:'bad_profile'};
+ const child={id:p.id||('c'+Date.now()),name:p.name||'未命名',birth:p.birth,sex:normalizeImportSex(p.sex),records:[],selfPaid:{}};
+ if(p.je||p.hepa)child.meta={je:p.je,hepa:p.hepa};
+ let imported=0,skipped=0;const warnings=[];
+ (Array.isArray(p.addons)?p.addons:[]).forEach(a=>{const vid=ADDON_IMPORT[a];if(vid&&vaccineById(vid))child.selfPaid[vid]=true;else warnings.push('未知自费项：'+a);});
+ for(const [key,rec] of Object.entries(raw.records||{})){
+  const d=parseDoseKey(key);if(!d||!d.ok){skipped++;warnings.push('跳过未知剂次：'+key);continue}
+  const date=rec&&rec.date;if(!isValidRecordDate(date)){skipped++;warnings.push('跳过无效日期：'+key);continue}
+  child.records.push({vid:d.vid,date,batch:String(rec.clinic||rec.batch||''),note:String(rec.note||'')});
+  imported++;const v=vaccineById(d.vid);if(v&&!v.nip)child.selfPaid[d.vid]=true;
+ }
+ return{ok:true,child,imported,skipped,warnings};
+}
+function exportSingleChild(child){
+ const sp=child.selfPaid||{},addons=[];
+ Object.keys(ADDON_EXPORT).forEach(vid=>{if(sp[vid]===true)addons.push(ADDON_EXPORT[vid]);});
+ const meta=child.meta||{};
+ const profile={name:child.name,birth:child.birth,sex:exportProfileSex(child.sex),je:meta.je||'live',hepa:meta.hepa||'live',id:child.id,addons:[...new Set(addons)]};
+ const records={};const byVid={};
+ (child.records||[]).forEach(r=>{(byVid[r.vid]=byVid[r.vid]||[]).push(r);});
+ Object.keys(byVid).forEach(vid=>{byVid[vid].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+  byVid[vid].forEach((r,i)=>{records[exportDoseSlug(vid)+'-'+(i+1)]={date:r.date,clinic:r.batch||'',note:r.note||''};});});
+ return{profile,records,exportedAt:new Date().toISOString()};
+}
+function detectImportFormat(raw){
+ if(Array.isArray(raw))return{kind:'array',items:raw};
+ if(raw&&typeof raw==='object'&&Array.isArray(raw.children))return{kind:'full',raw};
+ if(raw&&typeof raw==='object'&&raw.profile&&raw.records&&typeof raw.records==='object')return{kind:'single',raw};
+ return{kind:'unknown'};
+}
+function mergeChildRecords(existing,incoming,mode){
+ if(mode==='replace')return JSON.parse(JSON.stringify({...incoming,id:existing.id}));
+ const recs=(existing.records||[]).slice();
+ (incoming.records||[]).forEach(r=>{if(!recs.some(x=>x.vid===r.vid&&x.date===r.date))recs.push({...r});});
+ recs.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+ const selfPaid={...(existing.selfPaid||{}),...(incoming.selfPaid||{})};
+ return{...existing,name:incoming.name||existing.name,birth:incoming.birth||existing.birth,sex:incoming.sex||existing.sex,records:recs,selfPaid,meta:incoming.meta||existing.meta};
+}
+function importIntoState(state,raw,onConflict){
+ const fmt0=detectImportFormat(raw);let st=normalizeAppState(state)||{children:[],cur:null};
+ let totalImported=0,totalSkipped=0,warnings=[],added=0,updated=0;
+ if(fmt0.kind==='full'){const n=normalizeAppState(fmt0.raw);if(!n)return{ok:false,error:'bad_full'};
+  return{ok:true,state:n,cur:n.cur,message:'已导入完整备份（'+n.children.length+' 个孩子）',imported:0,skipped:0,warnings:[]};}
+ if(fmt0.kind==='unknown')return{ok:false,error:'unknown_format'};
+ const items=fmt0.kind==='array'?fmt0.items:[fmt0.raw];
+ const children=st.children.slice();
+ for(const item of items){
+  const conv=convertSingleChildExport(item);if(!conv.ok)return{ok:false,error:conv.error||'bad_single'};
+  totalImported+=conv.imported;totalSkipped+=conv.skipped;warnings=warnings.concat(conv.warnings);
+  const idx=children.findIndex(c=>c.id===conv.child.id);
+  if(idx>=0){
+   let mode='merge';if(typeof onConflict==='function')mode=onConflict(children[idx],conv.child)||'merge';
+   if(mode==='skip')continue;
+   children[idx]=mergeChildRecords(children[idx],conv.child,mode);updated++;st.cur=children[idx].id;
+  }else{children.push(conv.child);added++;st.cur=conv.child.id;}
+ }
+ st={children,cur:st.cur||(children[0]?.id??null)};
+ let message='已导入 '+totalImported+' 条接种记录';
+ if(totalSkipped)message+='，跳过 '+totalSkipped+' 条';
+ if(added&&updated)message+='（新增 '+added+' 人，更新 '+updated+' 人）';else if(added)message+='（新增 '+added+' 个孩子）';else if(updated)message+='（已更新 '+updated+' 个孩子）';
+ return{ok:true,state:st,cur:st.cur,message,warnings,imported:totalImported,skipped:totalSkipped};
+}
 const API={isSelected,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
- SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh};
+ SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh,
+ ADDON_IMPORT,ADDON_EXPORT,convertSingleChildExport,exportSingleChild,detectImportFormat,mergeChildRecords,importIntoState,isValidRecordDate,parseDoseKey};
 if(typeof module!=='undefined')module.exports=API;else root.VT=API;
 })(this);
