@@ -192,12 +192,20 @@ function syncAction(){if(authSession){if(confirm('退出云同步？本机数据
 function openLogin(){dialog(`<h3>邮箱登录 / 云同步</h3><p class="muted">登录后可在多设备间同步备份。仍可在未登录时仅使用本机存储。</p>
 <label class="f"><span>邮箱</span><input type="email" name="email" required autocomplete="email" placeholder="you@example.com"></label>
 <button class="btn p" type="button" style="width:100%;margin-top:14px" onclick="sendMagicLink(this)">发送登录链接</button>
+<p id="loginStatus" class="muted" role="status" aria-live="polite"></p>
 <p class="faint" style="margin:16px 0 8px">或输入邮件中的 6 位验证码</p>
 <label class="f"><span>验证码</span><input name="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="123456"></label>
 <button class="btn" type="button" style="width:100%;margin-top:8px" onclick="verifyOtp(this)">确认验证码</button>`,null,'关闭')}
 async function sendMagicLink(btn){const f=$('dform'),email=(new FormData(f)).get('email');if(!email)return;btn.disabled=true;
- try{const r=await fetch(sb().url+'/auth/v1/otp',{method:'POST',headers:{apikey:sb().key,'Content-Type':'application/json'},body:JSON.stringify({email,create_user:true,options:{email_redirect_to:location.origin+location.pathname}})});
- if(!r.ok)throw 0;toast('登录链接已发送，请查收邮件')}catch(e){toast('发送失败，请检查邮箱或稍后再试')}finally{btn.disabled=false}}
+ const status=$('loginStatus');status.textContent='正在发送…';
+ try{const r=await fetch(sb().url+'/auth/v1/otp?redirect_to='+encodeURIComponent(location.origin+location.pathname),{method:'POST',headers:{apikey:sb().key,'Content-Type':'application/json'},body:JSON.stringify({email,create_user:true})});
+ if(!r.ok){const error=await r.json().catch(()=>({}));let message='发送失败（HTTP '+r.status+'），请稍后重试';
+ if(error.code==='over_email_send_rate_limit')message='项目邮件发送额度已用完，请等待额度恢复后重试。Supabase 默认邮件服务每小时仅支持 2 封，持续使用需配置自定义 SMTP。';
+ else if(r.status===429)message='请求过于频繁，请稍后重试，不要连续点击发送';
+ else if(error.code==='email_address_invalid')message='邮箱地址无效，请检查后重试';
+ else if(error.code==='email_address_not_authorized')message='当前默认邮件服务仅允许向项目成员发送邮件，其他邮箱需要配置自定义 SMTP';
+ throw new Error(message)}status.textContent='登录链接已发送，请使用最新邮件中的链接；旧链接可能已失效。';toast('登录链接已发送，请查收邮件')}
+ catch(e){status.textContent=e instanceof TypeError?'网络连接失败，请检查网络后重试':e.message;toast(status.textContent)}finally{btn.disabled=false}}
 async function verifyOtp(btn){const f=$('dform'),email=(new FormData(f)).get('email'),token=(new FormData(f)).get('otp');if(!email||!token||String(token).length<6)return toast('请填写邮箱和 6 位验证码');btn.disabled=true;
  try{const r=await fetch(sb().url+'/auth/v1/verify',{method:'POST',headers:{apikey:sb().key,'Content-Type':'application/json'},body:JSON.stringify({email,token,type:'email'})});
  if(!r.ok)throw 0;authSession=VT.sessionFromAuthResponse(await r.json());if(!authSession)throw 0;persistSession(authSession);$('dlg').close();toast('已登录');await reconcileAfterLogin();render()}catch(e){toast('验证码错误或已过期')}finally{btn.disabled=false}}

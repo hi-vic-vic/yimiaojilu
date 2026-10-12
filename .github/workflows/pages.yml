@@ -24,6 +24,7 @@ jobs:
         with:
           node-version: "20"
       - run: node test.js
+      - run: node auth-test.js
 
   deploy:
     needs: test

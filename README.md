@@ -112,6 +112,15 @@ create policy "vaccine_data_own_row" on public.vaccine_data
 - 前端使用的 **anon（公开）key**  deliberately 可写在 `schedule.js` 并随 `index.html` 发布；在 **RLS 已正确配置** 的前提下，匿名用户无法读写他人数据，也无法绕过策略批量访问。
 - **切勿** 将 **service_role** key 写入仓库或前端；该密钥仅用于受信任的服务端环境。
 
+### 邮箱登录排查
+
+- 前端直接调用 Auth REST API，回跳地址通过 `/auth/v1/otp?redirect_to=...` 传递，必须保留 `/yimiaojilu/` 项目路径。
+- Supabase 默认邮件服务每个项目每小时只支持 2 封邮件，并限制收件人为项目成员。遇到 `over_email_send_rate_limit` 时等待额度恢复，连续重试无法解决；正式使用需要在 Authentication → Emails → SMTP Settings 配置自定义 SMTP。
+- 邮件链接为一次性链接。配置变更不会更新旧邮件；请使用新邮件中的链接。邮件安全扫描也可能提前消耗链接。
+- 页面会保留发送结果，区分邮件额度限制、短时间频繁请求、邮箱问题和网络失败。
+- 使用 `node auth-test.js` 检查 REST 回跳参数和失败提示，无需实际发邮件。
+
+
 ### Authentication → URL configuration（必填）
 
 | 字段 | 建议值 |
