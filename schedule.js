@@ -1,0 +1,104 @@
+// ===== 疫苗程序数据与排程逻辑（可在 Node 与浏览器中共用）=====
+(function(root){
+const SOURCE='《国家免疫规划疫苗儿童免疫程序及说明（2026年版）》（2026年6月，中国疾病预防控制中心发布）；国家疾控局等《关于国家免疫规划百白破疫苗和白破疫苗免疫程序调整相关工作的通知》（国疾控卫免发〔2024〕20号，2025年1月1日起实施）；原《2021年版》（国卫疾控发〔2021〕10号）。非免疫规划疫苗依据各产品说明书。';
+// age: {m:月,d:天,y:年}; minInt: 与上一剂最小间隔(天); minFrom:{dose:i,days} 与指定剂次最小间隔
+const V=[
+ {id:'hepb',name:'乙肝疫苗',group:'乙肝',nip:true,doses:[{age:{d:0},label:'第1剂(出生24小时内)'},{age:{m:1},minInt:28,label:'第2剂'},{age:{m:6},minInt:60,minFrom:{dose:0,days:120},label:'第3剂'}],catchup:'未完成全程的<18岁儿童按程序补齐，第1、2剂间隔≥28天，第2、3剂间隔≥60天，第1、3剂间隔≥4个月。'},
+ {id:'bcg',name:'卡介苗',group:'结核',nip:true,doses:[{age:{d:0},label:'出生时'}],maxAge:{y:4},catchup:'<3月龄未接种者直接补种；3月龄—3周岁TB-PPD/BCG-PPD等试验阴性者应予补种；≥4周岁不予补种；已接种者即使无卡痕也不再补种。'},
+ {id:'polio',name:'脊灰疫苗(IPV×2+bOPV×2)',group:'脊灰',nip:true,doses:[{age:{m:2},label:'第1剂 IPV'},{age:{m:3},minInt:28,label:'第2剂 IPV'},{age:{m:4},minInt:28,label:'第3剂 bOPV'},{age:{y:4},minInt:28,label:'第4剂 bOPV'}],catchup:'<4周岁未满3剂者补齐3剂，≥4周岁未满4剂者补齐4剂；先IPV后bOPV，间隔≥28天；须保证2剂含Ⅱ型脊灰疫苗(IPV)。已完成4剂含IPV成分疫苗者无需bOPV。'},
+ {id:'dtap',name:'百白破疫苗(DTaP)',group:'百白破',nip:true,maxAge:{y:7},doses:[{age:{m:2},label:'第1剂'},{age:{m:4},minInt:28,label:'第2剂'},{age:{m:6},minInt:28,label:'第3剂'},{age:{m:18},minInt:182,label:'第4剂'},{age:{y:6},minInt:365,label:'第5剂(6周岁)'}],catchup:'2月龄—6周岁未完成者尽早补种：前3剂间隔≥28天，第4剂与第3剂≥6个月，第5剂与第4剂≥12个月。2025年1月1日前6周岁已接种白破者无需再接种第5剂。7—11周岁改用白破疫苗补种。'},
+ {id:'dt',name:'白破疫苗(DT，仅7—11周岁补种)',group:'百白破',nip:true,catchupOnly:true,doses:[{age:{y:7},label:'补种'}],maxAge:{y:12},catchup:'7—11周岁：DTaP累计<3剂者用DT补齐3剂(第2剂与第1剂间隔1—2月，第3剂与第2剂间隔6—12月)；累计≥3剂且6周岁未接种DTaP/DT者补1剂DT。'},
+ {id:'mmr',name:'麻腮风疫苗',group:'麻腮风',nip:true,doses:[{age:{m:8},label:'第1剂'},{age:{m:18},minInt:28,label:'第2剂'}],catchup:'<18岁未完成2剂者补齐，间隔≥28天。'},
+ {id:'jel',name:'乙脑减毒活疫苗',group:'乙脑',nip:true,alt:'jei',doses:[{age:{m:8},label:'第1剂'},{age:{y:2},minInt:365,label:'第2剂'}],catchup:'用JE-L补种应补齐2剂，间隔≥12个月。(与灭活疫苗二选一)'},
+ {id:'jei',name:'乙脑灭活疫苗',group:'乙脑',nip:true,alt:'jel',doses:[{age:{m:8},label:'第1剂'},{age:{m:8},minInt:7,label:'第2剂(与第1剂间隔7-10天)'},{age:{y:2},minInt:30,label:'第3剂'},{age:{y:6},minInt:365*3,label:'第4剂'}],catchup:'用JE-I补种应补齐4剂：第1、2剂间隔7—10天，第2、3剂间隔1—12个月，第3、4剂间隔≥3年。(与减毒活疫苗二选一)'},
+ {id:'mpsva',name:'A群流脑多糖疫苗',group:'流脑',nip:true,doses:[{age:{m:6},label:'第1剂'},{age:{m:9},minInt:90,label:'第2剂'}],maxAge:{y:2},catchup:'<24月龄补齐A群2剂，间隔≥3个月；≥24月龄不再补A群，改补A群C群疫苗。'},
+ {id:'mpsvac',name:'A群C群流脑多糖疫苗',group:'流脑',nip:true,doses:[{age:{y:3},minPrevSeries:{id:'mpsva',days:365},label:'第1剂(3岁)'},{age:{y:6},minInt:365*3,label:'第2剂(6岁)'}],catchup:'第1剂与A群第2剂间隔≥12个月；两剂AC间隔≥3年。≥24月龄未接种过A群者3周岁前尽早接种AC；仅接种过1剂A群者间隔≥3个月尽早接种AC。'},
+ {id:'hepal',name:'甲肝减毒活疫苗',group:'甲肝',nip:true,alt:'hepai',doses:[{age:{m:18},label:'1剂'}],catchup:'<18岁未接种者补1剂。(与灭活疫苗二选一)'},
+ {id:'hepai',name:'甲肝灭活疫苗',group:'甲肝',nip:true,alt:'hepal',doses:[{age:{m:18},label:'第1剂'},{age:{y:2},minInt:182,label:'第2剂'}],catchup:'用HepA-I补种应补齐2剂，间隔≥6个月；已接种1剂HepA-I但无条件接种第2剂时，可间隔≥6个月接种1剂HepA-L完成。'},
+ {id:'hpv2',name:'双价HPV疫苗(免疫规划)',group:'HPV',nip:true,sexOnly:'F',maxAge:{y:18},doses:[{age:{y:13},label:'第1剂(13周岁)'},{age:{y:13,m:6},minInt:150,label:'第2剂(间隔6个月，最短≥5个月)'}],catchup:'2011年11月10日及以后出生女孩未完成2剂者，应在18周岁前尽早补齐，间隔6个月(最短≥5个月)。已按说明书完成任一HPV疫苗全程者无需再接种。'},
+ // 非免疫规划
+ {id:'pcv13',name:'13价肺炎球菌结合疫苗',group:'肺炎',nip:false,doses:[{age:{m:2},label:'第1剂'},{age:{m:4},minInt:28,label:'第2剂'},{age:{m:6},minInt:28,label:'第3剂'},{age:{m:12},minInt:56,label:'加强(12-15月龄)'}],perProduct:true,catchup:'起始月龄不同剂次不同，以产品说明书为准。'},
+ {id:'ppv23',name:'23价肺炎球菌多糖疫苗',group:'肺炎',nip:false,doses:[{age:{y:2},label:'1剂(≥2岁高危人群)'}],perProduct:true,optional:true},
+ {id:'hib',name:'Hib疫苗',group:'Hib',nip:false,doses:[{age:{m:2},label:'第1剂'},{age:{m:3},minInt:28,label:'第2剂'},{age:{m:4},minInt:28,label:'第3剂'},{age:{m:18},minInt:182,label:'加强'}],perProduct:true,catchup:'起始月龄越大剂次越少，以说明书为准。'},
+ {id:'rv5',name:'5价轮状病毒疫苗(口服)',group:'轮状',excl:'rota',nip:false,doses:[{age:{w:6},label:'第1剂(6-12周龄)'},{age:{w:10},minInt:28,label:'第2剂'},{age:{w:14},minInt:28,label:'第3剂(32周龄前完成)'}],maxAge:{w:32},perProduct:true},
+ {id:'rv3',name:'三价轮状病毒疫苗(口服，兰州所)',group:'轮状',excl:'rota',nip:false,doses:[{age:{w:6},label:'第1剂(6-13周龄开始)'},{age:{w:10},minInt:30,label:'第2剂(间隔1个月)'},{age:{w:14},minInt:30,label:'第3剂(不晚于32周龄)'}],maxAge:{w:32},perProduct:true,catchup:'首剂6-13周龄，间隔1个月，第3剂不晚于32周龄；与5价轮状二选一。'},
+ {id:'var',name:'水痘疫苗',group:'水痘',nip:false,doses:[{age:{m:12},label:'第1剂'},{age:{y:4},minInt:90,label:'第2剂'}],perProduct:true},
+ {id:'flu',name:'流感疫苗(每年)',group:'流感',nip:false,yearly:true,doses:[{age:{m:6},label:'每年流行季前(首次接种8岁以下需2剂间隔≥4周)'}],perProduct:true},
+ {id:'ev71',name:'EV71手足口疫苗',group:'EV71',nip:false,doses:[{age:{m:6},label:'第1剂'},{age:{m:7},minInt:28,label:'第2剂'}],maxAge:{y:6},perProduct:true,catchup:'6月龄-5岁(部分产品至71月龄)，2剂间隔1个月。'},
+ {id:'penta',name:'五联疫苗(DTaP-IPV/Hib)',group:'五联',nip:false,covers:{dtap:[0,1,2,3],polio:[0,1,2,3],hib:[0,1,2,3]},doses:[{age:{m:2},label:'第1剂'},{age:{m:3},minInt:28,label:'第2剂'},{age:{m:4},minInt:28,label:'第3剂'},{age:{m:18},minInt:182,label:'加强'}],perProduct:true,note:'接种五联后，对应剂次的百白破、脊灰、Hib可不再接种（第4剂脊灰4岁bOPV请遵医嘱）。'},
+ {id:'hpv',name:'HPV疫苗(自费，二价/四价/九价)',group:'HPV',nip:false,doses:[{age:{y:9},label:'第1剂'},{age:{y:9,m:6},minInt:180,label:'第2剂(9-14岁女孩2剂程序，视产品)'}],perProduct:true,sexOnly:'F',note:'免疫规划已为13周岁女孩免费提供双价HPV(见上)；自费产品：二价/四价/九价用于女性（9-14岁多为2剂）；男性适应证以最新获批说明书为准。多地已将HPV纳入13-14岁女孩免费接种。'}
+];
+const DAY=864e5;
+function parse(s){const [y,m,d]=s.split('-').map(Number);return new Date(Date.UTC(y,m-1,d));}
+function fmt(d){return d.toISOString().slice(0,10);}
+function addAge(b,a){const d=new Date(b);d.setUTCFullYear(d.getUTCFullYear()+(a.y||0));d.setUTCMonth(d.getUTCMonth()+(a.m||0));d.setUTCDate(d.getUTCDate()+(a.d||0)+(a.w||0)*7);return d;}
+function addDays(d,n){return new Date(d.getTime()+n*DAY);}
+// records: [{vid,dose(0-based),date,batch,note}]
+// 自费疫苗是否纳入计划：selfPaid[id]===false 明确取消时不再提醒（已有记录仍计数）；selfPaid[id]===true 或已有接种记录（且未明确取消）视为已选。旧备份无 selfPaid 字段时同样适用。
+function isSelected(child,v){if(v.nip)return true;const sp=child.selfPaid||{};if(sp[v.id]===false)return false;return sp[v.id]===true||(child.records||[]).some(r=>r.vid===v.id);}
+// covers 通用机制：coverer.covers = {目标疫苗id: [目标剂次下标...]}，coverer 第 i 剂覆盖目标第 covers[t][i] 剂。
+function seriesPlan(child,today){
+ today=today?parse(today):parse(new Date().toISOString().slice(0,10));
+ const birth=parse(child.birth),recs=child.records||[],out=[];
+ const done=id=>recs.filter(r=>r.vid===id).sort((a,b)=>a.date<b.date?-1:1);
+ const byId=Object.fromEntries(V.map(v=>[v.id,v]));
+ const coverDates={},planned={},coverInfo={};
+ // 1) 已接种的 coverer 剂次计入目标疫苗（无论现在是否仍选择该 coverer）
+ V.forEach(v=>{if(!v.covers)return;done(v.id).forEach((r,i)=>{for(const t in v.covers)if(i<v.covers[t].length)(coverDates[t]=coverDates[t]||[]).push(r.date);});});
+ const combined=id=>done(id).map(r=>r.date).concat(coverDates[id]||[]).sort();
+ // 2) coverer 进度 = 各目标已完成剂次（含单苗+联合苗）在覆盖范围内的最小值；计划覆盖其余剂次
+ V.forEach(v=>{if(!v.covers||!isSelected(child,v))return;
+  const prog=Math.min(v.doses.length,...Object.keys(v.covers).filter(t=>byId[t].nip||isSelected(child,byId[t])).map(t=>Math.min(combined(t).length,v.covers[t].length)));
+  coverInfo[v.id]={prog};
+  if(prog<v.doses.length)for(const t of Object.keys(v.covers)){const n=combined(t).length;const slots=v.covers[t].filter(k=>k>=n);if(slots.length)planned[t]={by:v.id,byName:v.name,max:Math.max(...v.covers[t])};}
+ });
+ for(const v of V){
+  if(v.sexOnly&&child.sex&&child.sex!==v.sexOnly&&v.nip)continue;
+  if(v.id==='hpv2'&&child.birth<'2011-11-10')continue;
+  const sel=isSelected(child,v);
+  let allDates=combined(v.id);
+  // coverer 自身：进度按覆盖目标计算（支持中途切换）
+  if(v.covers&&coverInfo[v.id]){const ds=Object.keys(v.covers).flatMap(t=>combined(t)).sort();const p=coverInfo[v.id].prog;allDates=ds.length?Array(p).fill(null).map((_,i)=>ds[ds.length-1]):[];if(p)allDates[p-1]=ds[ds.length-1];}
+  let n=allDates.length;
+  const rs=done(v.id);
+  const altDone=v.alt&&done(v.alt).length>0&&rs.length===0;
+  let status,due=null,nextLabel='',catchup=false,coveredBy=null,laterDue=null,laterLabel='';
+  if(!sel)status='unselected';
+  else if(altDone)status='alt';
+  else if(n>=v.doses.length&&!v.yearly)status='done';
+  else if(planned[v.id]&&n<=planned[v.id].max){status='covered';coveredBy=planned[v.id].byName;
+   const k=planned[v.id].max+1;if(k<v.doses.length){laterDue=fmt(addAge(birth,v.doses[k].age));laterLabel=v.doses[k].label;}}
+  else{
+   const idx=v.yearly?0:n,d=v.doses[idx];
+   due=addAge(birth,d.age);
+   if(v.yearly&&n){const last=parse(allDates[n-1]);const nx=addDays(last,365);if(nx>due)due=nx;}
+   if(!v.yearly&&n&&d.minInt){const t=addDays(parse(allDates[n-1]),d.minInt);if(t>due)due=t;}
+   if(d.minFrom&&allDates[d.minFrom.dose]){const t=addDays(parse(allDates[d.minFrom.dose]),d.minFrom.days);if(t>due)due=t;}
+   if(v.id==='mpsvac'&&idx===0){const a=done('mpsva').length,ge24=today>=addAge(birth,{m:24});if(ge24&&a<2){const t=addAge(birth,{m:24});due=a===1?new Date(Math.max(t,addDays(parse(done('mpsva')[0].date),90))):t;}else if(a>=2){const t=addDays(parse(done('mpsva')[a-1].date),365);if(t>due)due=t;}}
+   else if(d.minPrevSeries){const p=combined(d.minPrevSeries.id);if(p.length){const t=addDays(parse(p[p.length-1]),d.minPrevSeries.days);if(t>due)due=t;}}
+   nextLabel=d.label;
+   if(v.maxAge&&today>=addAge(birth,v.maxAge)){status='expired';}
+   else{
+    const diff=(due-today)/DAY;
+    if(diff<0){status='overdue';catchup=true;due=today>due?today:due;}
+    else if(diff<=30)status='soon';else status='future';
+    if(catchup&&n&&d.minInt){const t=addDays(parse(allDates[n-1]),d.minInt);if(t>due)due=t;}
+   }
+  }
+  if(v.catchupOnly){const dn=combined('dtap').length;const age7=today>=addAge(birth,{y:7});
+   if(status!=='done'&&(!age7||dn>=5)){status='alt';due=null;}}
+  out.push({id:v.id,name:v.name,group:v.group,nip:v.nip,excl:v.excl||null,selected:sel,given:Math.min(n,v.doses.length),total:v.doses.length,status,due:due?fmt(due):null,nextLabel,coveredBy,laterDue,laterLabel,catchupNote:v.catchup||'',perProduct:!!v.perProduct,optional:!v.nip});
+ }
+ return out;
+}
+function statusOf(d,today){const diff=(parse(d)-today)/DAY;return diff<0?'overdue':diff<=30?'soon':'future';}
+function upcoming(child,today){const T=today?parse(today):parse(new Date().toISOString().slice(0,10));const L=[];
+ seriesPlan(child,today).forEach(s=>{if(s.due&&['overdue','soon','future'].includes(s.status))L.push(s);
+  else if(s.status==='covered'&&s.laterDue)L.push({...s,status:statusOf(s.laterDue,T),due:s.laterDue<fmt(T)?fmt(T):s.laterDue,nextLabel:s.laterLabel,later:true});});
+ return L.sort((a,b)=>a.due<b.due?-1:1);}
+function timeline(child){const b=parse(child.birth),items=[];for(const v of V){if(v.catchupOnly||(v.sexOnly&&child.sex&&child.sex!==v.sexOnly&&v.nip))continue;v.doses.forEach((d,i)=>items.push({vid:v.id,dose:i,name:v.name,label:d.label,nip:v.nip,date:fmt(addAge(b,d.age)),age:d.age}));}return items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(b.nip-a.nip));}
+function ics(child,today){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//vaccine-tracker//CN','CALSCALE:GREGORIAN'];upcoming(child,today).forEach((s,i)=>{const d=s.due.replace(/-/g,'');L.push('BEGIN:VEVENT','UID:'+child.id+'-'+s.id+'-'+d+'@vt','DTSTAMP:'+d+'T000000Z','DTSTART;VALUE=DATE:'+d,'SUMMARY:'+child.name+' 接种 '+s.name+' '+s.nextLabel,'DESCRIPTION:仅供参考，请以接种门诊安排为准','BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:疫苗接种提醒','END:VALARM','END:VEVENT');});L.push('END:VCALENDAR');return L.join('\r\n');}
+function ageText(birth,today){const b=parse(birth),t=today?parse(today):new Date();let m=(t.getUTCFullYear()-b.getUTCFullYear())*12+t.getUTCMonth()-b.getUTCMonth();if(t.getUTCDate()<b.getUTCDate())m--;if(m<1)return Math.floor((t-b)/DAY)+'天';return m<24?m+'月龄':Math.floor(m/12)+'岁'+(m%12?m%12+'个月':'');}
+const API={isSelected,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt};
+if(typeof module!=='undefined')module.exports=API;else root.VT=API;
+})(this);
