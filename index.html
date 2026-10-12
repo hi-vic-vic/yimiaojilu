@@ -139,7 +139,7 @@ dialog::backdrop{background:#0e1a1459}
 <script>
 // ===== 疫苗程序数据与排程逻辑（可在 Node 与浏览器中共用）=====
 (function(root){
-const SOURCE='《国家免疫规划疫苗儿童免疫程序及说明（2026年版）》（2026年6月，中国疾病预防控制中心发布）；国家疾控局等《关于国家免疫规划百白破疫苗和白破疫苗免疫程序调整相关工作的通知》（国疾控卫免发〔2024〕20号，2025年1月1日起实施）；原《2021年版》（国卫疾控发〔2021〕10号）。非免疫规划疫苗依据各产品说明书。';
+const SOURCE='《国家免疫规划疫苗儿童免疫程序及说明（2026年版）》（2026年6月，中国疾病预防控制中心发布）；国家疾控局等《关于国家免疫规划百白破疫苗和白破疫苗免疫程序调整相关工作的通知》（国疾控卫免发〔2024〕20号，2025年1月1日起实施）；原《2021年版》（国卫疾控发〔2021〕10号）。非免疫规划疫苗依据各产品说明书；曼海欣(MCV4)程序见 NMPA 批准说明书（2026年扩龄至6周岁说明，上海 GPO 2026-03-05）及《广东省非免疫规划疫苗接种方案（2026年版）》。';
 // age: {m:月,d:天,y:年}; minInt: 与上一剂最小间隔(天); minFrom:{dose:i,days} 与指定剂次最小间隔
 const V=[
  {id:'hepb',name:'乙肝疫苗',group:'乙肝',nip:true,doses:[{age:{d:0},label:'第1剂(出生24小时内)'},{age:{m:1},minInt:28,label:'第2剂'},{age:{m:6},minInt:60,minFrom:{dose:0,days:120},label:'第3剂'}],catchup:'未完成全程的<18岁儿童按程序补齐，第1、2剂间隔≥28天，第2、3剂间隔≥60天，第1、3剂间隔≥4个月。'},
@@ -165,9 +165,59 @@ const V=[
  {id:'flu',name:'流感疫苗(每年)',group:'流感',nip:false,yearly:true,doses:[{age:{m:6},label:'每年流行季前(首次接种8岁以下需2剂间隔≥4周)'}],perProduct:true},
  {id:'ev71',name:'EV71手足口疫苗',group:'EV71',nip:false,doses:[{age:{m:6},label:'第1剂'},{age:{m:7},minInt:28,label:'第2剂'}],maxAge:{y:6},perProduct:true,catchup:'6月龄-5岁(部分产品至71月龄)，2剂间隔1个月。'},
  {id:'penta',name:'五联疫苗(DTaP-IPV/Hib)',group:'五联',nip:false,covers:{dtap:[0,1,2,3],polio:[0,1,2,3],hib:[0,1,2,3]},doses:[{age:{m:2},label:'第1剂'},{age:{m:3},minInt:28,label:'第2剂'},{age:{m:4},minInt:28,label:'第3剂'},{age:{m:18},minInt:182,label:'加强'}],perProduct:true,note:'接种五联后，对应剂次的百白破、脊灰、Hib可不再接种（第4剂脊灰4岁bOPV请遵医嘱）。'},
+ // 曼海欣 Menhycia：ACYW135群脑膜炎球菌多糖结合疫苗(CRM197)。程序依首剂年龄动态计算（见 mcv4Series）；doses 仅用于导入校验/时间轴占位。
+ {id:'mcv4',name:'曼海欣(MCV4 ACYW135结合)',group:'流脑',nip:false,perProduct:true,dynamic:true,maxAge:{m:83},
+  doses:[{age:{m:3},label:'首剂(≥3月龄)'},{age:{m:4},minInt:28,label:'第2剂'},{age:{m:5},minInt:28,label:'第3剂'},{age:{m:12},minInt:28,label:'12月龄加强(可选)'}],
+  catchup:'3–5月龄：3剂间隔≥1月，12月龄可加强1剂；6–23月龄：2剂间隔1–3月(加强未确定)；2–3岁(≤47月龄)/4–6岁(≤83月龄)：各1剂。首剂年龄决定程序，详见说明书。',
+  note:'替代免费流脑：完成<24月龄说明书程序→视为完成A群流脑(MPSV-A)；在3周岁、6周岁程序年龄接种含A/C成分→视为完成相应A群C群流脑(MPSV-AC)剂次（《2026年版免疫程序》流脑“其他事项”5–6条）。本工具以36、72月龄近似“3岁/6岁”程序年龄，具体以门诊为准。'},
  {id:'hpv',name:'HPV疫苗(自费，二价/四价/九价)',group:'HPV',nip:false,doses:[{age:{y:9},label:'第1剂'},{age:{y:9,m:6},minInt:180,label:'第2剂(9-14岁女孩2剂程序，视产品)'}],perProduct:true,sexOnly:'F',note:'免疫规划已为13周岁女孩免费提供双价HPV(见上)；自费产品：二价/四价/九价用于女性（9-14岁多为2剂）；男性适应证以最新获批说明书为准。多地已将HPV纳入13-14岁女孩免费接种。'}
 ];
 const DAY=864e5;
+function ageInMonths(birth,dateStr){const b=parse(birth),t=parse(dateStr);let m=(t.getUTCFullYear()-b.getUTCFullYear())*12+t.getUTCMonth()-b.getUTCMonth();if(t.getUTCDate()<b.getUTCDate())m--;return m;}
+function mcv4BandFromMonths(m){if(m>=3&&m<=5)return'3-5';if(m>=6&&m<=23)return'6-23';if(m>=24&&m<=47)return'2-3y';if(m>=48&&m<=83)return'4-6y';return m<3?'pre':'post';}
+function mcv4BandFirst(firstDate,birth){return mcv4BandFromMonths(ageInMonths(birth,firstDate));}
+function mcv4Spec(band){
+ if(band==='3-5')return{required:3,minInt:28,has12Booster:true,labels:['第1剂(3–5月龄)','第2剂(间隔≥1月)','第3剂(间隔≥1月)'],boosterLabel:'加强(12月龄，说明书可选)'};
+ if(band==='6-23')return{required:2,minInt:30,labels:['第1剂(6–23月龄)','第2剂(间隔1–3月)']};
+ if(band==='2-3y')return{required:1,labels:['1剂(2–3岁)']};
+ if(band==='4-6y')return{required:1,labels:['1剂(4–6岁)']};
+ return null;
+}
+function mcv4Series(child,todayStr){
+ const birth=child.birth,today=todayStr||fmt(new Date()),recs=(child.records||[]).filter(r=>r.vid==='mcv4').sort((a,b)=>a.date<b.date?-1:1),n=recs.length,b=parse(birth);
+ if(!n){const mo=ageInMonths(birth,today),band=mcv4BandFromMonths(mo),spec=mcv4Spec(band);
+  if(mo<3)return{given:0,total:3,status:'future',due:fmt(addAge(b,{m:3})),nextLabel:'首剂(≥3月龄)',band:'pre',required:0,catchupNote:''};
+  if(!spec||band==='post')return{given:0,total:0,status:'expired',due:null,nextLabel:'',band:'post',required:0,catchupNote:''};
+  const due=fmt(addAge(b,{m:Math.max(3,mo)}));const diff=(parse(due)-parse(today))/DAY;
+  const st=diff<0?'overdue':diff<=30?'soon':'future';
+  return{given:0,total:spec.required,status:st,due,nextLabel:spec.labels[0],band,required:spec.required,catchupNote:''};}
+ const band=mcv4BandFirst(recs[0].date,birth),spec=mcv4Spec(band);
+ if(!spec)return{given:n,total:n,status:'done',due:null,nextLabel:'',band,required:n,catchupNote:''};
+ if(n>=spec.required){
+  if(spec.has12Booster&&n===spec.required){const boosterDue=addAge(b,{m:12});if(parse(today)>=boosterDue){const diff=(boosterDue-parse(today))/DAY;return{given:n,total:spec.required+1,status:diff<0?'overdue':diff<=30?'soon':'future',due:fmt(boosterDue),nextLabel:spec.boosterLabel,band,required:spec.required,catchupNote:'12月龄加强为说明书可选，非免疫规划替代所必需。'};}
+   return{given:n,total:spec.required,status:'done',due:null,nextLabel:'',band,required:spec.required,catchupNote:''};}
+  return{given:n,total:spec.has12Booster?spec.required+1:spec.required,status:'done',due:null,nextLabel:'',band,required:spec.required,catchupNote:''};}
+ const last=parse(recs[n-1].date);let due=addDays(last,spec.minInt),label=spec.labels[n]||('第'+(n+1)+'剂');
+ const diff=(due-parse(today))/DAY;let status='future';if(diff<0){status='overdue';due=parse(today)>due?parse(today):due;}else if(diff<=30)status='soon';
+ return{given:n,total:spec.required,status,due:fmt(due),nextLabel:label,band,required:spec.required,catchupNote:''};
+}
+function applyMcv4NationalCoverage(child,coverDates){
+ const recs=(child.records||[]).filter(r=>r.vid==='mcv4').sort((a,b)=>a.date<b.date?-1:1);if(!recs.length)return;
+ const birth=child.birth,band=mcv4BandFirst(recs[0].date,birth),spec=mcv4Spec(band);if(!spec)return;
+ if(['3-5','6-23'].includes(band)&&recs.length>=spec.required&&ageInMonths(birth,recs[recs.length-1].date)<24)
+  coverDates.mpsva=[recs[0].date,recs[Math.min(spec.required,recs.length)-1].date];
+ recs.forEach(r=>{const mo=ageInMonths(birth,r.date);
+  if(mo>=36&&mo<72){coverDates.mpsvac=coverDates.mpsvac||[];if(!coverDates.mpsvac[0])coverDates.mpsvac[0]=r.date;}
+  if(mo>=72){coverDates.mpsvac=coverDates.mpsvac||[];coverDates.mpsvac[1]=r.date;}});
+}
+function applyMcv4Planned(child,planned,done,isSel,todayStr){
+ if(!isSel)return;
+ const recs=done('mcv4'),mo=ageInMonths(child.birth,todayStr);
+ if(!recs.length){if(mo>=3)planned.mpsva={by:'mcv4',byName:'曼海欣(MCV4)',max:1};return;}
+ const band=mcv4BandFirst(recs[0].date,child.birth),spec=mcv4Spec(band);
+ if(spec&&['3-5','6-23'].includes(band)&&recs.length<spec.required)
+  planned.mpsva={by:'mcv4',byName:'曼海欣(MCV4)',max:1};
+}
 function parse(s){const [y,m,d]=s.split('-').map(Number);return new Date(Date.UTC(y,m-1,d));}
 function fmt(d){return d.toISOString().slice(0,10);}
 function addAge(b,a){const d=new Date(b);d.setUTCFullYear(d.getUTCFullYear()+(a.y||0));d.setUTCMonth(d.getUTCMonth()+(a.m||0));d.setUTCDate(d.getUTCDate()+(a.d||0)+(a.w||0)*7);return d;}
@@ -184,6 +234,7 @@ function seriesPlan(child,today){
  const coverDates={},planned={},coverInfo={};
  // 1) 已接种的 coverer 剂次计入目标疫苗（无论现在是否仍选择该 coverer）
  V.forEach(v=>{if(!v.covers)return;done(v.id).forEach((r,i)=>{for(const t in v.covers)if(i<v.covers[t].length)(coverDates[t]=coverDates[t]||[]).push(r.date);});});
+ applyMcv4NationalCoverage(child,coverDates);
  const combined=id=>done(id).map(r=>r.date).concat(coverDates[id]||[]).sort();
  // 2) coverer 进度 = 各目标已完成剂次（含单苗+联合苗）在覆盖范围内的最小值；计划覆盖其余剂次
  V.forEach(v=>{if(!v.covers||!isSelected(child,v))return;
@@ -191,10 +242,16 @@ function seriesPlan(child,today){
   coverInfo[v.id]={prog};
   if(prog<v.doses.length)for(const t of Object.keys(v.covers)){const n=combined(t).length;const slots=v.covers[t].filter(k=>k>=n);if(slots.length)planned[t]={by:v.id,byName:v.name,max:Math.max(...v.covers[t])};}
  });
+ applyMcv4Planned(child,planned,done,isSelected(child,byId.mcv4),fmt(today));
  for(const v of V){
   if(v.sexOnly&&child.sex&&child.sex!==v.sexOnly&&v.nip)continue;
   if(v.id==='hpv2'&&child.birth<'2011-11-10')continue;
   const sel=isSelected(child,v);
+  if(v.dynamic&&v.id==='mcv4'){
+   const ms=mcv4Series(child,fmt(today));let status=sel?ms.status:'unselected',due=sel?ms.due:null,nextLabel=sel?ms.nextLabel:'',catchup=status==='overdue';
+   out.push({id:v.id,name:v.name,group:v.group,nip:v.nip,excl:v.excl||null,selected:sel,given:ms.given,total:ms.total,status,due,nextLabel,coveredBy:null,laterDue:null,laterLabel:'',catchupNote:sel?(ms.catchupNote||v.catchup||''):'',perProduct:true,optional:false});
+   continue;
+  }
   let allDates=combined(v.id);
   // coverer 自身：进度按覆盖目标计算（支持中途切换）
   if(v.covers&&coverInfo[v.id]){const ds=Object.keys(v.covers).flatMap(t=>combined(t)).sort();const p=coverInfo[v.id].prog;allDates=ds.length?Array(p).fill(null).map((_,i)=>ds[ds.length-1]):[];if(p)allDates[p-1]=ds[ds.length-1];}
@@ -275,9 +332,9 @@ function sessionFromAuthResponse(body){
 }
 function needsTokenRefresh(sess,skewMs=120e3){return!sess||!sess.expires_at||Date.now()>=sess.expires_at-skewMs;}
 // ===== 导入 / 导出（完整备份 + 单孩子 profile/records 格式）=====
-const ADDON_IMPORT={pentavalent:'penta',rotavirus3:'rv3',rotavirus5:'rv5'};
-const ADDON_EXPORT={penta:'pentavalent',rv3:'rotavirus3',rv5:'rotavirus5'};
-const DOSE_SLUG_IMPORT={rota3:'rv3',rota5:'rv5',pentavalent:'penta'};
+const ADDON_IMPORT={pentavalent:'penta',rotavirus3:'rv3',rotavirus5:'rv5',mcv4:'mcv4',menhycia:'mcv4'};
+const ADDON_EXPORT={penta:'pentavalent',rv3:'rotavirus3',rv5:'rotavirus5',mcv4:'mcv4'};
+const DOSE_SLUG_IMPORT={rota3:'rv3',rota5:'rv5',pentavalent:'penta',menhycia:'mcv4'};
 const DOSE_SLUG_EXPORT={rv3:'rota3',rv5:'rota5'};
 function exportDoseSlug(vid){return DOSE_SLUG_EXPORT[vid]||vid;}
 function importDoseSlug(slug){return DOSE_SLUG_IMPORT[slug]||slug;}
@@ -357,7 +414,8 @@ function importIntoState(state,raw,onConflict){
 }
 const API={isSelected,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
  SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh,
- ADDON_IMPORT,ADDON_EXPORT,convertSingleChildExport,exportSingleChild,detectImportFormat,mergeChildRecords,importIntoState,isValidRecordDate,parseDoseKey};
+ ADDON_IMPORT,ADDON_EXPORT,convertSingleChildExport,exportSingleChild,detectImportFormat,mergeChildRecords,importIntoState,isValidRecordDate,parseDoseKey,
+ ageInMonths,mcv4BandFromMonths,mcv4BandFirst,mcv4Spec,mcv4Series,applyMcv4NationalCoverage};
 if(typeof module!=='undefined')module.exports=API;else root.VT=API;
 })(this);
 
@@ -469,7 +527,7 @@ function renderInner(){
  const sp=plan.filter(s=>!s.nip);
  const spPanel=`<section class="panel" id="spPlan"><div class="sec-h"><h3>自费疫苗计划</h3><span class="faint">勾选后才会提醒</span></div>
   <div class="opts">${sp.map(s=>{const rec=(c.records||[]).some(r=>r.vid===s.id);return `<label class="opt ${s.selected?'on':''}"><input type="checkbox" data-sp="${s.id}" ${s.selected?'checked':''} onchange="toggleSP('${s.id}',this.checked)"><span>${esc(s.name)}${rec?'<small>已有接种记录</small>':s.excl?'<small>轮状疫苗二选一</small>':''}</span></label>`}).join('')}</div>
-  <p class="faint" style="margin-top:10px">选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。</p></section>`;
+  <p class="faint" style="margin-top:10px">选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。曼海欣(MCV4)为 ACYW135 结合疫苗，程序依首剂年龄而定，可按《2026年版免疫程序》替代相应免费流脑剂次（详见疫苗说明）。</p></section>`;
  const tools=`<div class="tools"><button class="btn sm" onclick="editChild(cur())">编辑资料</button><button class="btn sm" onclick="exportICS()">导出日历</button><button class="btn sm" onclick="exportChildJSON()">导出档案</button><button class="btn sm" onclick="exportJSON()">导出备份</button><button class="btn sm" onclick="$('imp').click()">导入备份</button><button class="btn sm link danger" onclick="delChild()">删除孩子</button></div>`;
  const cnt=k=>plan.filter(s=>s.nip&&s.status===k).length;
  const aside=`<aside class="panel aside who"><h2>${esc(c.name)}</h2><p class="muted">${c.sex==='F'?'女孩':'男孩'}，${VT.ageText(c.birth,today())}<span class="faint">（${c.birth} 出生）</span></p>

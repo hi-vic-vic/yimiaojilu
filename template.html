@@ -246,7 +246,7 @@ function renderInner(){
  const sp=plan.filter(s=>!s.nip);
  const spPanel=`<section class="panel" id="spPlan"><div class="sec-h"><h3>自费疫苗计划</h3><span class="faint">勾选后才会提醒</span></div>
   <div class="opts">${sp.map(s=>{const rec=(c.records||[]).some(r=>r.vid===s.id);return `<label class="opt ${s.selected?'on':''}"><input type="checkbox" data-sp="${s.id}" ${s.selected?'checked':''} onchange="toggleSP('${s.id}',this.checked)"><span>${esc(s.name)}${rec?'<small>已有接种记录</small>':s.excl?'<small>轮状疫苗二选一</small>':''}</span></label>`}).join('')}</div>
-  <p class="faint" style="margin-top:10px">选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。</p></section>`;
+  <p class="faint" style="margin-top:10px">选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。曼海欣(MCV4)为 ACYW135 结合疫苗，程序依首剂年龄而定，可按《2026年版免疫程序》替代相应免费流脑剂次（详见疫苗说明）。</p></section>`;
  const tools=`<div class="tools"><button class="btn sm" onclick="editChild(cur())">编辑资料</button><button class="btn sm" onclick="exportICS()">导出日历</button><button class="btn sm" onclick="exportChildJSON()">导出档案</button><button class="btn sm" onclick="exportJSON()">导出备份</button><button class="btn sm" onclick="$('imp').click()">导入备份</button><button class="btn sm link danger" onclick="delChild()">删除孩子</button></div>`;
  const cnt=k=>plan.filter(s=>s.nip&&s.status===k).length;
  const aside=`<aside class="panel aside who"><h2>${esc(c.name)}</h2><p class="muted">${c.sex==='F'?'女孩':'男孩'}，${VT.ageText(c.birth,today())}<span class="faint">（${c.birth} 出生）</span></p>

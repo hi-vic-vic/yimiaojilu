@@ -97,4 +97,21 @@ assert.ok(round.records['penta-1']&&round.records['rota3-3']);
 const bad=VT.convertSingleChildExport({profile:{name:'x',birth:'2026-01-01',sex:'boy',id:'t',addons:[]},records:{'not-a-dose-1':{date:'2026-01-02',clinic:'',note:''},'hepb-1':{date:'bad',clinic:'',note:''}}});
 assert.equal(bad.imported,0);assert.equal(bad.skipped,2);
 assert.equal(VT.importIntoState({children:[],cur:null},[{profile:xunbao.profile,records:xunbao.records}]).state.children.length,1);
+// 曼海欣 MCV4：5月龄首剂(3–5月龄程序) + 替代 A群流脑
+(()=>{const birth='2026-05-11',c={birth,records:[],selfPaid:{mcv4:true}};
+ let plan=VT.seriesPlan(c,T);assert.equal(plan.find(s=>s.id==='mcv4').status,'overdue');
+ assert.equal(plan.find(s=>s.id==='mpsva').status,'covered');
+ c.records=[{vid:'mcv4',date:'2026-10-11'},{vid:'mcv4',date:'2026-11-11'},{vid:'mcv4',date:'2026-12-11'}];
+ plan=VT.seriesPlan(c,T);assert.equal(plan.find(s=>s.id==='mcv4').status,'done');
+ assert.equal(plan.find(s=>s.id==='mpsva').status,'done');assert.equal(plan.find(s=>s.id==='mpsva').given,2);})();
+// 6–23月龄程序：2剂
+(()=>{const c={birth:'2025-04-01',records:[{vid:'mcv4',date:'2025-12-01'}],selfPaid:{mcv4:true}};
+ const plan=VT.seriesPlan(c,'2026-01-15');assert.equal(plan.find(s=>s.id==='mcv4').given,1);assert.equal(plan.find(s=>s.id==='mcv4').total,2);
+ assert.equal(plan.find(s=>s.id==='mcv4').nextLabel,'第2剂(间隔1–3月)');})();
+// 3岁程序年龄接种 → 覆盖 AC 第1剂；6岁仍待接种
+(()=>{const c={birth:'2022-06-01',records:[{vid:'mcv4',date:'2025-06-15'}],selfPaid:{mcv4:true}};
+ const plan=VT.seriesPlan(c,'2026-10-12');assert.equal(plan.find(s=>s.id==='mpsvac').given,1);
+ assert.ok(['future','soon','overdue'].includes(plan.find(s=>s.id==='mpsvac').status));})();
+assert.ok(VT.ADDON_IMPORT.mcv4==='mcv4');
+assert.ok(VT.parseDoseKey('mcv4-1').ok&&VT.parseDoseKey('mcv4-1').vid==='mcv4');
 console.log('All tests passed');
