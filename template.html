@@ -1,36 +1,39 @@
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark"><title>接种簿 | 儿童疫苗记录</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f6b58'/%3E%3Ctext x='16' y='22' font-size='17' text-anchor='middle' fill='%23f4f7f4' font-family='sans-serif'%3E%E7%B0%BF%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234a7d68'/%3E%3Ctext x='16' y='22' font-size='17' text-anchor='middle' fill='%23f7faf8' font-family='sans-serif'%3E%E7%B0%BF%3C/text%3E%3C/svg%3E">
 <style>
-/* Design read: 家庭健康记录工具（非营销页），面向中国家长；信任优先、平静、温和、移动优先。
-   Dials: DESIGN_VARIANCE 4 / MOTION_INTENSITY 3 / VISUAL_DENSITY 5（trust-first 档）。
-   不使用设计系统包（需自包含单文件），原生 CSS + 系统中文字体。
-   形状规则：面板 16px，控件/标签 10px，主按钮 10px。单一强调色：松绿 --accent。
-   状态色（逾期/临近）仅表达语义状态。 */
+/* Design read: Soft UI + Bento 概览 + Clay 下一针 hero；低饱和松绿/鼠尾草，暖 off-white 底，自包含单文件。 */
 :root{
- --bg:#e8ece9;--surface:#f8faf8;--raised:#ffffff0d;--line:#ccd5cf;--text:#1a221e;--muted:#3f4f47;--faint:#5c6b63;
- --accent:#2f6b58;--accent-ink:#f4f7f4;--accent-soft:#dce8e2;
- --late:#9a382e;--late-soft:#f6e4e1;--soon:#7a4e0c;--soon-soft:#f5ecd9;--ok:#2a5f4d;--ok-soft:#dce8e2;--idle:#4a5852;--idle-soft:#e3e8e5;
- --hero-chip-bg:color-mix(in srgb,var(--accent-ink) 22%,transparent);--hero-chip-line:color-mix(in srgb,var(--accent-ink) 55%,transparent);
- --shadow:0 1px 2px #2f4a3d12,0 10px 28px -14px #2f4a3d26;
- --r-hero:20px;--r-panel:14px;--r-ctl:10px;
+ --bg:#f0ede6;--surface:#faf8f4;--raised:#ffffff;--line:#ddd8cf;--text:#1c2420;--muted:#3d4a44;--faint:#5f6d66;
+ --accent:#4a7d68;--accent-deep:#3a6654;--accent-ink:#f7faf8;--accent-soft:#e3ece7;--mint:#b8d4c8;
+ --late:#9a382e;--late-soft:#f6e8e5;--soon:#7a4e0c;--soon-soft:#f5ecd9;--ok:#356b58;--ok-soft:#e0ebe6;--idle:#4a5852;--idle-soft:#e8ebe9;
+ --hero-chip-bg:color-mix(in srgb,var(--accent-ink) 26%,transparent);--hero-chip-line:color-mix(in srgb,var(--accent-ink) 58%,transparent);
+ --shadow-soft:0 2px 4px #3d5a4a0a,0 12px 32px -8px #3d5a4a18,0 24px 48px -20px #3d5a4a12;
+ --shadow-clay-out:0 14px 28px -10px #2f4a3d38,0 4px 12px -2px #2f4a3d22;
+ --shadow-clay-in:inset 0 2px 4px #ffffff55,inset 0 -3px 8px #1a302820;
+ --r-hero:28px;--r-panel:20px;--r-ctl:14px;--r-chip:10px;
  --font:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Noto Sans SC","Source Han Sans SC",system-ui,sans-serif;
+ --shadow:var(--shadow-soft);
 }
 @media (prefers-color-scheme:dark){:root{
- --bg:#121614;--surface:#1a201d;--line:#3a4540;--text:#e8ece9;--muted:#b4c0b9;--faint:#8a9890;
- --accent:#6fb89f;--accent-ink:#0f1b16;--accent-soft:#24332c;
- --late:#f0a196;--late-soft:#3a2220;--soon:#e2bd78;--soon-soft:#33291a;--ok:#7fbfa6;--ok-soft:#1f2f28;--idle:#a3b0a9;--idle-soft:#242b28;
- --hero-chip-bg:color-mix(in srgb,var(--accent-ink) 14%,transparent);--hero-chip-line:color-mix(in srgb,var(--accent-ink) 38%,transparent);
- --shadow:0 1px 2px #0006,0 10px 28px -14px #000a}}
+ --bg:#141816;--surface:#1e2421;--raised:#252c28;--line:#3a4540;--text:#eceee9;--muted:#b8c4bc;--faint:#8a9890;
+ --accent:#7ab89f;--accent-deep:#5a9880;--accent-ink:#0f1814;--accent-soft:#283530;--mint:#4a6b5e;
+ --late:#f0a196;--late-soft:#3a2220;--soon:#e2bd78;--soon-soft:#33291a;--ok:#8fc4ad;--ok-soft:#1f2f28;--idle:#a3b0a9;--idle-soft:#242b28;
+ --hero-chip-bg:color-mix(in srgb,var(--accent-ink) 18%,transparent);--hero-chip-line:color-mix(in srgb,var(--accent-ink) 42%,transparent);
+ --shadow-soft:0 2px 4px #0004,0 12px 32px -8px #0006,0 24px 48px -20px #0005;
+ --shadow-clay-out:0 14px 28px -10px #0008,0 4px 12px -2px #0006;
+ --shadow-clay-in:inset 0 2px 4px #ffffff12,inset 0 -3px 8px #0006}}
 *{box-sizing:border-box}[hidden]{display:none!important}html{scroll-behavior:smooth}
 body{margin:0;min-height:100dvh;background:var(--bg);color:var(--text);font:15px/1.55 var(--font);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
 h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.015em;text-wrap:balance;line-height:1.25}
 p{margin:0;max-width:72ch}.muted{color:var(--muted)}.faint{color:var(--faint);font-size:13px;line-height:1.5}
 button,select,input{font:inherit;color:inherit}
-.btn{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--surface);cursor:pointer;white-space:nowrap;
- transition:transform .2s cubic-bezier(.16,1,.3,1),background-color .2s,border-color .2s}
-.btn:hover{border-color:color-mix(in srgb,var(--accent) 60%,var(--line))}.btn:active{transform:translateY(1px) scale(.98)}
-.btn.p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}.btn.p:hover{filter:brightness(1.06)}
+.btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--raised);cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px -4px #3d5a4a14;
+ transition:transform .2s cubic-bezier(.16,1,.3,1),background-color .2s,border-color .2s,box-shadow .2s}
+.btn:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));box-shadow:0 4px 14px -6px #3d5a4a20}
+.btn:active{transform:translateY(1px) scale(.98);box-shadow:0 1px 4px -2px #3d5a4a18}
+.btn.p{background:linear-gradient(165deg,color-mix(in srgb,var(--accent) 88%,#fff),var(--accent-deep));border-color:color-mix(in srgb,var(--accent-deep) 80%,var(--accent));color:var(--accent-ink);font-weight:600;
+ box-shadow:var(--shadow-clay-out),var(--shadow-clay-in)}.btn.p:hover{filter:brightness(1.04)}.btn.p:active{filter:brightness(.98)}
 .btn.link{border-color:transparent;background:none;color:var(--accent);padding:0 8px;min-height:36px}
 .btn.danger{color:var(--late)}.btn.sm{min-height:34px;padding:0 12px;font-size:14px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -47,26 +50,41 @@ button,select,input{font:inherit;color:inherit}
 .wrap{max-width:1180px;margin:0 auto;padding:20px 20px 56px}
 .notice{border-left:3px solid var(--soon);background:var(--soon-soft);padding:10px 14px;border-radius:0 var(--r-ctl) var(--r-ctl) 0;font-size:13.5px;color:var(--text);margin-bottom:12px;max-width:80ch}
 .notice.info{border-color:var(--accent);background:var(--accent-soft)}
-.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:10px 0 24px;overflow-x:auto;scrollbar-width:none;padding-bottom:1px}
-.tabs button{border:0;background:none;padding:11px 16px 13px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;font-size:15px;border-radius:8px 8px 0 0;min-height:44px}
-.tabs button:hover{color:var(--text);background:color-mix(in srgb,var(--accent) 5%,transparent)}
-.tabs button.on{color:var(--text);border-color:var(--accent);font-weight:600}
+.tabs{display:flex;gap:6px;margin:12px 0 28px;overflow-x:auto;scrollbar-width:none;padding:4px;background:color-mix(in srgb,var(--surface) 70%,var(--bg));border-radius:var(--r-panel);border:1px solid var(--line);box-shadow:inset 0 1px 2px #3d5a4a0a}
+.tabs button{border:0;background:transparent;padding:10px 18px;cursor:pointer;color:var(--muted);white-space:nowrap;font-size:15px;border-radius:calc(var(--r-ctl) + 2px);min-height:44px;
+ transition:background .2s,color .2s,box-shadow .2s}
+.tabs button:hover{color:var(--text);background:color-mix(in srgb,var(--accent-soft) 50%,transparent)}
+.tabs button.on{color:var(--text);font-weight:600;background:var(--raised);box-shadow:0 2px 10px -4px #3d5a4a22}
 .tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.panel{background:var(--surface);border-radius:var(--r-panel);border:1px solid var(--line);padding:22px;box-shadow:var(--shadow)}
-.aside.panel{background:transparent;border-style:dashed}
-.grid{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(280px,1fr);gap:24px;align-items:start}
-.stack>*+*{margin-top:24px}
-/* 下一针 */
-.next{display:grid;grid-template-columns:auto 1fr;gap:4px 28px;align-items:center;padding:28px 28px 24px;border-radius:var(--r-hero);
- background:var(--accent);color:var(--accent-ink);box-shadow:none;position:relative;overflow:hidden}
-.next:after{content:"";position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;border:28px solid color-mix(in srgb,var(--accent-ink) 9%,transparent);pointer-events:none}
+.panel{background:var(--surface);border-radius:var(--r-panel);border:1px solid color-mix(in srgb,var(--line) 85%,transparent);padding:24px;box-shadow:var(--shadow-soft)}
+.bento{display:grid;gap:20px;grid-template-columns:1fr;grid-template-areas:"hero" "stats" "who" "up" "sp"}
+.bento-hero{grid-area:hero}.bento-stats{grid-area:stats;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.bento-who{grid-area:who}.bento-up{grid-area:up}.bento-sp{grid-area:sp}
+.stat-tile{padding:18px 20px;display:flex;flex-direction:column;justify-content:center;gap:4px;min-height:88px}
+.stat-tile b{font-size:32px;line-height:1;font-weight:700;letter-spacing:-.02em}
+.stat-tile span{font-size:13px;color:var(--muted);line-height:1.4}
+.stat-tile.late b{color:var(--late)}.stat-tile.soon b{color:var(--soon)}.stat-tile.done b{color:var(--ok)}
+@media (min-width:861px){.bento{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:auto auto minmax(120px,auto) auto;gap:20px;
+ grid-template-areas:"hero hero hero stat-late" "hero hero hero stat-soon" "hero hero hero stat-done" "up up who who" "sp sp sp sp"}
+ .bento-stats{display:contents}
+ .stat-tile.stat-late{grid-area:stat-late}.stat-tile.stat-soon{grid-area:stat-soon}.stat-tile.stat-done{grid-area:stat-done}}
+/* 下一针 · clay */
+.next{display:grid;grid-template-columns:auto 1fr;gap:4px 28px;align-items:center;padding:32px 32px 28px;border-radius:var(--r-hero);
+ background:linear-gradient(152deg,color-mix(in srgb,var(--accent) 92%,var(--mint)),var(--accent-deep) 58%,var(--accent-deep));
+ color:var(--accent-ink);border:1px solid color-mix(in srgb,var(--mint) 35%,var(--accent-deep));
+ box-shadow:var(--shadow-clay-out),var(--shadow-clay-in);position:relative;overflow:hidden}
+.next:before{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(120% 80% at 12% 0%,#ffffff28,transparent 55%);pointer-events:none}
+.next:after{content:"";position:absolute;right:-48px;top:-48px;width:200px;height:200px;border-radius:50%;border:32px solid color-mix(in srgb,var(--accent-ink) 8%,transparent);pointer-events:none}
 .next .when{font-size:56px;line-height:1;font-weight:800;letter-spacing:-.03em;padding-right:28px;border-right:1px solid color-mix(in srgb,var(--accent-ink) 30%,transparent)}
 .next .when small{display:block;font-size:14px;font-weight:500;letter-spacing:0;margin-top:8px;opacity:.85}
-.next.late{background:var(--late)}
+.next.late{background:linear-gradient(152deg,color-mix(in srgb,var(--late) 85%,#fff),color-mix(in srgb,var(--late) 95%,#000));border-color:color-mix(in srgb,var(--late) 70%,#000)}
 .next .what h2{font-size:22px;line-height:1.3}.next .what p{margin-top:6px;opacity:.95;max-width:none}
-.next .acts{grid-column:1/-1;margin-top:20px;display:flex;gap:8px;flex-wrap:wrap}
-.next .btn{background:var(--accent-ink);color:var(--accent);border-color:transparent;font-weight:600}.next.late .btn{color:var(--late)}
-.next .btn.ghost{background:transparent;color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent-ink) 45%,transparent)}
+.next .acts{grid-column:1/-1;margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;position:relative;z-index:1}
+.next .what,.next .when{position:relative;z-index:1}
+.next .btn.p{background:linear-gradient(165deg,#fafcf9,color-mix(in srgb,var(--accent-ink) 92%,var(--mint)));color:var(--accent-deep);border-color:#ffffff66;
+ box-shadow:0 8px 20px -8px #1a302a55,inset 0 2px 4px #fff9,inset 0 -2px 6px #1a302818}
+.next.late .btn.p{color:var(--late)}
+.next .btn.ghost{background:color-mix(in srgb,var(--accent-ink) 12%,transparent);color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent-ink) 45%,transparent);box-shadow:none}
 .next .chip,.next .chip.k-self,.next .k-self,.next .chip.s-overdue,.next .chip.s-soon,.next .chip.s-future,.next .chip.s-done,.next .chip.s-covered{
  color:var(--accent-ink);background:var(--hero-chip-bg);border:1px solid var(--hero-chip-line);box-shadow:none}
 .next.late .chip,.next.late .chip.k-self,.next.late .k-self,.next.late .chip.s-overdue,.next.late .chip.s-soon{
@@ -79,14 +97,16 @@ button,select,input{font:inherit;color:inherit}
 .v .n{font-weight:600;font-size:15px;line-height:1.35}.v .meta{grid-column:1;color:var(--muted);font-size:13.5px;line-height:1.55;max-width:72ch}
 .v .act{grid-row:1/3;grid-column:2;align-self:center}
 .v .tip{grid-column:1/-1;font-size:13px;color:var(--late);background:var(--late-soft);border-radius:var(--r-ctl);padding:8px 10px;margin-top:6px;max-width:72ch}
-.chip{display:inline-block;font-size:12px;line-height:20px;padding:1px 9px;border-radius:6px;margin-left:6px;vertical-align:1px;font-weight:600;letter-spacing:.01em}
+.chip{display:inline-block;font-size:12px;line-height:20px;padding:2px 10px;border-radius:var(--r-chip);margin-left:6px;vertical-align:1px;font-weight:600;letter-spacing:.01em}
 .s-overdue{color:var(--late);background:var(--late-soft)}.s-soon{color:var(--soon);background:var(--soon-soft)}.s-done{color:var(--ok);background:var(--ok-soft)}
 .s-covered{color:var(--accent);background:var(--accent-soft)}
 .s-future,.s-expired,.s-alt,.s-unselected{color:var(--idle);background:var(--idle-soft)}
 .k-self{color:var(--muted);border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 70%,var(--bg))}
 .opts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.opt{display:flex;align-items:center;gap:8px;min-height:40px;padding:6px 12px;border:1px solid var(--line);border-radius:var(--r-ctl);cursor:pointer;font-size:14px;background:var(--bg)}
-.opt.on{border-color:var(--accent);background:var(--accent-soft)}.opt input{accent-color:var(--accent);width:16px;height:16px;margin:0}.opt small{display:block;font-size:12px;color:var(--muted)}
+.opt{display:flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:1px solid var(--line);border-radius:var(--r-ctl);cursor:pointer;font-size:14px;background:var(--bg);box-shadow:0 2px 6px -4px #3d5a4a12;
+ transition:transform .2s,border-color .2s,box-shadow .2s}
+.opt:hover{box-shadow:0 4px 12px -6px #3d5a4a18}.opt:active{transform:scale(.99)}
+.opt.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 1px 2px #3d5a4a0a,0 2px 8px -4px #3d5a4a14}.opt input{accent-color:var(--accent);width:16px;height:16px;margin:0}.opt small{display:block;font-size:12px;color:var(--muted)}
 .covered-note{margin-top:10px;padding-top:12px;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}.covered-note b{font-weight:500;margin-right:4px}.covered-note .chip{margin-left:0}
 .avail{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.avail summary{cursor:pointer;color:var(--muted);font-size:14px}
 #spPlan.panel{padding:0;overflow:hidden}
@@ -101,10 +121,7 @@ button,select,input{font:inherit;color:inherit}
 .sp-plan-body .opts{margin-top:4px}
 /* 侧栏 */
 .who h2{font-size:22px}.who p{margin-top:2px}
-.nums{display:grid;grid-template-columns:1fr 1fr;gap:18px 12px;margin:18px 0 6px}
-.nums b{display:block;font-size:28px;line-height:1.1;font-weight:700}.nums span{font-size:13px;color:var(--muted)}
-.nums .late b{color:var(--late)}.nums .soon b{color:var(--soon)}
-.tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
 /* 时间轴 */
 .tl{position:relative;padding-left:22px}.tl:before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:var(--line)}
 .tl .age{position:relative;margin:22px 0 6px;font-weight:600}.tl .age:first-child{margin-top:0}
@@ -122,8 +139,8 @@ button,select,input{font:inherit;color:inherit}
 .hello li b{display:block;color:var(--text);font-weight:600}
 .src{margin-top:32px;font-size:12.5px;color:var(--faint);max-width:90ch;line-height:1.7}
 /* 弹层：移动端底部抽屉 */
-dialog{border:1px solid var(--line);border-radius:var(--r-panel);padding:0;width:min(440px,92vw);background:var(--surface);color:var(--text);box-shadow:0 28px 64px -24px #0b1a1370}
-dialog::backdrop{background:#0e1a1459}
+dialog{border:1px solid var(--line);border-radius:var(--r-panel);padding:0;width:min(440px,92vw);background:var(--surface);color:var(--text);box-shadow:var(--shadow-soft),0 32px 64px -28px #0b1a1450}
+dialog::backdrop{background:#1a221e66}
 #dform{padding:24px}#dform h3{font-size:19px;margin-bottom:8px}
 .f{display:grid;gap:6px;margin-top:14px}.f span{font-size:13.5px;font-weight:500;color:var(--muted)}
 .f input,.f select{min-height:44px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--bg);padding:0 12px;width:100%}
@@ -132,7 +149,7 @@ dialog::backdrop{background:#0e1a1459}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:3;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:var(--r-ctl);font-size:14px;opacity:0;pointer-events:none;transition:opacity .25s}
 .toast.on{opacity:1}
 .err{color:var(--late)}
-@media (max-width:860px){.grid,.cols,.hello{grid-template-columns:1fr}.hello{padding:24px}.aside{order:-1}}
+@media (max-width:860px){.cols,.hello{grid-template-columns:1fr}.hello{padding:24px}.bento-stats{grid-template-columns:1fr}}
 @media (max-width:767px){
  .top-in{padding:0 14px;gap:8px}.brand small{display:none}.sync{max-width:none;width:100%;order:3;justify-content:flex-start;margin-left:0;padding-top:4px}.wrap{padding:14px 14px 48px}
  .panel{padding:16px}.next{padding:20px;grid-template-columns:1fr}.next .when{font-size:44px;border-right:0;padding:0 0 12px;border-bottom:1px solid color-mix(in srgb,var(--accent-ink) 30%,transparent);margin-bottom:8px}
@@ -270,14 +287,15 @@ function renderInner(){
  const tools=`<div class="tools"><button class="btn sm" onclick="editChild(cur())">编辑资料</button><button class="btn sm" onclick="exportICS()">导出日历</button><button class="btn sm" onclick="exportChildJSON()">导出档案</button><button class="btn sm" onclick="exportJSON()">导出备份</button><button class="btn sm" onclick="$('imp').click()">导入备份</button><button class="btn sm link danger" onclick="delChild()">删除孩子</button></div>`;
  const statRow=s=>s.nip||s.selected;
  const cnt=k=>plan.filter(s=>statRow(s)&&s.status===k).length;
- const aside=`<aside class="panel aside who"><h2>${esc(c.name)}</h2><p class="muted">${c.sex==='F'?'女孩':'男孩'}，${VT.ageText(c.birth,today())}<span class="faint">（${c.birth} 出生）</span></p>
-  <div class="nums"><div class="late"><b>${cnt('overdue')}</b><span>疫苗逾期</span></div><div class="soon"><b>${cnt('soon')}</b><span>30 天内到期</span></div><div><b>${cnt('done')}</b><span>计划内已完成</span></div><div><b>${(c.records||[]).length}</b><span>接种记录</span></div></div>${tools}</aside>`;
+ const whoPanel=`<aside class="panel bento-tile bento-who who"><h2>${esc(c.name)}</h2><p class="muted">${c.sex==='F'?'女孩':'男孩'}，${VT.ageText(c.birth,today())}<span class="faint">（${c.birth} 出生）</span></p>
+  <p class="faint" style="margin-top:8px">已录入 ${(c.records||[]).length} 条接种记录</p>${tools}</aside>`;
  let h='';
  if(tab==='dash'){const up=VT.upcoming(c,today()),n=up[0];
-  const hero=n?`<section class="panel next ${n.status==='overdue'?'late':''}" aria-label="下一针"><div class="when">${n.status==='overdue'?'尽快补种':md(n.due)}<small>${n.status==='overdue'?'已过推荐时间':rel(n.due)}</small></div><div class="what"><h2>下一针：${esc(n.name)}</h2><p>${esc(n.nextLabel)}${!n.nip?' <span class="chip k-self">自费</span>':''}${n.status==='overdue'?'。补种前请先咨询接种门诊':''}</p></div>
-   <div class="acts"><button class="btn" onclick="addRec('${n.id}')">记录接种</button><button class="btn ghost" onclick="exportICS()">导出日历</button></div></section>`:`<section class="panel next"><div class="what"><h2>当前没有待接种提醒</h2><p class="muted">可在下方勾选自费疫苗，或在「全部疫苗」中查看进度。</p></div></section>`;
-  h=`<div class="grid"><div class="stack">${hero}<section class="panel" id="upNip"><div class="sec-h"><h3>待接种</h3><span class="faint">免疫规划与已选自费，按日期排序</span></div>${up.map(row).join('')||'<p class="muted">没有待接种的疫苗。</p>'}${(()=>{const cv=plan.filter(x=>x.status==='covered');return cv.length?`<div class="covered-note"><b>由${esc(short(cv[0].coveredBy))}覆盖，不单独提醒</b>${cv.map(x=>`<span class="chip s-covered">${esc(x.name.replace(/\(.*$/,''))}${x.laterDue?' 前4剂':''}</span>`).join('')}</div>`:''})()}</section>
-  ${spPanel}</div><div class="stack">${aside}</div></div>`;}
+  const hero=n?`<section class="panel next bento-tile bento-hero ${n.status==='overdue'?'late':''}" aria-label="下一针"><div class="when">${n.status==='overdue'?'尽快补种':md(n.due)}<small>${n.status==='overdue'?'已过推荐时间':rel(n.due)}</small></div><div class="what"><h2>下一针：${esc(n.name)}</h2><p>${esc(n.nextLabel)}${!n.nip?' <span class="chip k-self">自费</span>':''}${n.status==='overdue'?'。补种前请先咨询接种门诊':''}</p></div>
+   <div class="acts"><button class="btn p" onclick="addRec('${n.id}')">记录接种</button><button class="btn ghost" onclick="exportICS()">导出日历</button></div></section>`:`<section class="panel next bento-tile bento-hero"><div class="what"><h2>当前没有待接种提醒</h2><p class="muted">可在下方勾选自费疫苗，或在「全部疫苗」中查看进度。</p></div></section>`;
+  const stats=`<div class="bento-stats" aria-label="接种概况"><div class="panel stat-tile late stat-late"><b>${cnt('overdue')}</b><span>疫苗逾期</span></div><div class="panel stat-tile soon stat-soon"><b>${cnt('soon')}</b><span>30 天内到期</span></div><div class="panel stat-tile done stat-done"><b>${cnt('done')}</b><span>计划内已完成</span></div></div>`;
+  h=`<div class="bento">${hero}${stats}${whoPanel}<section class="panel bento-tile bento-up" id="upNip"><div class="sec-h"><h3>待接种</h3><span class="faint">免疫规划与已选自费，按日期排序</span></div>${up.map(row).join('')||'<p class="muted">没有待接种的疫苗。</p>'}${(()=>{const cv=plan.filter(x=>x.status==='covered');return cv.length?`<div class="covered-note"><b>由${esc(short(cv[0].coveredBy))}覆盖，不单独提醒</b>${cv.map(x=>`<span class="chip s-covered">${esc(x.name.replace(/\(.*$/,''))}${x.laterDue?' 前4剂':''}</span>`).join('')}</div>`:''})()}</section>
+  ${spPanel.replace('class="panel sp-plan','class="panel bento-tile bento-sp sp-plan')}</div>`;}
  if(tab==='all'){h=`<div class="cols"><section class="panel"><div class="sec-h"><h3>免疫规划疫苗</h3><span class="faint">免费</span></div>${plan.filter(s=>s.nip).map(row).join('')}</section>
   <section class="panel"><div class="sec-h"><h3>非免疫规划疫苗</h3><span class="faint">自费、自愿</span></div>${plan.filter(s=>!s.nip&&(s.selected||s.given>0)).map(row).join('')||'<p class="muted">尚未选择自费疫苗，可在概览页「自费疫苗计划」中勾选。</p>'}<p class="faint" style="margin-top:10px">记录五联疫苗(DTaP-IPV/Hib)后，对应剂次的百白破、脊灰、Hib 会自动计为已完成。2026 年版免疫规划为 13 周岁女孩免费接种 2 剂双价 HPV；自费四价、九价以说明书为准。</p></section></div>`;}
  if(tab==='tl'){const recs=c.records||[];let last='';h='<section class="panel"><div class="tl">';VT.timeline(c).forEach(t=>{const a=t.age,lab=a.y?a.y+'岁'+(a.m?a.m+'个月':''):a.m?a.m+'月龄':a.w?a.w+'周龄':'出生时';if(lab!==last){h+=`<div class="age">${lab}<span class="faint">${t.date}</span></div>`;last=lab}
