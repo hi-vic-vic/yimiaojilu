@@ -25,6 +25,10 @@ jobs:
           node-version: "20"
       - run: node test.js
       - run: node auth-test.js
+      - run: npm ci
+      - run: node e2e.js
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
 
   deploy:
     needs: test

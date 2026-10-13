@@ -1,6 +1,6 @@
 # 接种簿 · 儿童疫苗记录
 
-离线可用的单页 Web 应用，帮助家长查阅国家免疫规划疫苗与常见自费疫苗的推荐程序、记录已接种剂次，并推算下一针时间。**仅供参考，不构成医疗建议**；具体接种请以当地接种门诊、医生意见及疫苗说明书为准。
+需登录并联网使用的单页 Web 应用，帮助家长查阅国家免疫规划疫苗与常见自费疫苗的推荐程序、记录已接种剂次，并推算下一针时间。**仅供参考，不构成医疗建议**；具体接种请以当地接种门诊、医生意见及疫苗说明书为准。
 
 **在线站点：** [https://hi-vic-vic.github.io/yimiaojilu/](https://hi-vic-vic.github.io/yimiaojilu/)
 
@@ -15,9 +15,9 @@
 | **五联疫苗覆盖** | 记录 DTaP-IPV/Hib 五联后，对应剂次的百白破、脊灰、Hib 自动计为已覆盖，不再单独提醒（如 6 周岁第 5 剂百白破等仍按规则单独提醒） |
 | **轮状病毒二选一** | 三价口服轮状（rv3）与五价轮状（rv5）互斥选择，避免重复计划 |
 | **下一针推荐** | 结合出生日期、已录剂次、最小间隔与超龄规则，在概览页突出「下一针」，并支持导出 `.ics` 日历提醒 |
-| **本机存储** | 默认使用 `localStorage`；无法持久化时回退到内存并提示导出备份 |
+| **仅远端存储** | 孩子资料、接种记录和计划设置仅保存在 Supabase；必须登录并联网才能修改，远端保存成功后才确认修改 |
 | **导入 / 导出** | 支持单孩子「档案」JSON、多孩子完整备份，以及多种格式自动识别导入（见下文） |
-| **可选云同步** | 邮箱登录后，经 Supabase 在多设备间同步整份应用状态（见下文） |
+| **邮箱登录** | 通过 Supabase 登录并读取该账号的记录；退出后清空页面内存中的业务数据 |
 
 ### 数据来源（程序内置引用）
 
@@ -40,25 +40,19 @@
 
 ```mermaid
 flowchart LR
-  subgraph build [构建]
-    T[template.html]
-    S[schedule.js]
-    B[build.js]
-    T --> B
-    S --> B
-    B --> I[index.html]
-  end
-  subgraph runtime [浏览器运行时]
-    I --> LS[(localStorage)]
-    I --> MEM[内存回退]
-    I --> SB[Supabase REST / Auth]
-  end
-  LS --- MEM
-  I -. 可选登录 .-> SB
+  T[template.html] --> B[build.js]
+  S[schedule.js] --> B
+  B --> I[index.html]
+  I --> SB[Supabase REST / Auth]
+  I --> AUTH[本机仅保留登录会话]
 ```
 
-- **未登录**：读写 `localStorage`（键 `vt_data_v1`），逻辑与 PR 前一致。
-- **已登录**：通过原生 `fetch` 调用 Supabase Auth（magic link / 6 位验证码、token 刷新）与 PostgREST（`vaccine_data` 行 upsert），**不使用** supabase-js 或第三方 CDN。
+- **未登录**：仅显示登录入口，不能添加、修改或导入记录。
+- **已登录**：先读取云端状态，读取失败时阻止编辑，提供重试入口。不会使用旧版本机记录，也不会自动上传空数据覆盖云端。
+- **保存**：通过原生 `fetch` 调用 PostgREST（`vaccine_data` 行 upsert）；远端成功后才更新页面。失败或离线时不确认修改、不写入本机、不自动重试上传。保存期间防止重叠修改，离开页面会提示。
+- **登录会话**：`localStorage` 仅保存 `vt_auth_v1`，不保存孩子资料或记录；不支持浏览器存储时会话仅在当前页有效。退出会移除登录会话并清空页面业务数据。
+- **旧版迁移**：若发现 `vt_data_v1`，显示「导出旧版记录」和「清除旧版记录」。先导出，再登录并使用「导入备份」上传；确认备份或迁移完成后可手动清除旧版记录。升级不会自动删除旧记录，也不会自动覆盖云端。导出文件是用户主动下载的备份，不是应用的存储后端。
+- 无 Supabase SDK 或第三方 CDN；邮箱链接、验证码与 token 刷新使用原生 Auth REST。
 
 ---
 
@@ -72,7 +66,7 @@ flowchart LR
 
 **原则：**
 
-1. 对 `main` 的 **pull request** 与 **push** 均运行 `node test.js`。
+1. 对 `main` 的 **pull request** 与 **push** 均运行排程测试、认证测试及浏览器端到端测试。
 2. 仅当 **push 到 `main`** 且测试通过后： `configure-pages`（含 enablement）→ `upload-pages-artifact`（站点内容为 `index.html`）→ `deploy-pages`。
 3. 每次合并到 `main` 会自动重新部署 Pages。
 
@@ -82,7 +76,7 @@ flowchart LR
 
 ---
 
-## Supabase 云同步（可选）
+## Supabase 远端存储（必需）
 
 | 项目 | 值 |
 |------|-----|
@@ -193,7 +187,7 @@ Magic link 登录后会跳回当前站点，应用从 URL hash 解析 `access_to
 
 ### 导入时接受的格式
 
-1. **完整备份**：`{ "children": [...], "cur": "..." }` — 与「导出备份」一致，**整份替换**当前本机/云同步状态。
+1. **完整备份**：`{ "children": [...], "cur": "..." }` — 与「导出备份」一致，**整份替换**当前账号的云端状态。
 2. **单孩子档案**：上表 `{ profile, records, exportedAt }` — 合并进现有状态。
 3. **档案数组**：`[ { profile, records, ... }, ... ]` — 按顺序逐个导入。
 
@@ -204,7 +198,7 @@ Magic link 登录后会跳回当前站点，应用从 URL hash 解析 `access_to
 - **覆盖**：用导入数据替换该孩子的资料与全部接种记录。
 - **合并**：保留已有记录，仅追加导入中 **疫苗 ID + 日期** 不重复的条目，并合并自费勾选等信息。
 
-导入成功后会选中刚导入的孩子；若已登录云同步，会自动 debounce 上传。
+导入必须登录并成功读取云端状态。上传成功后才选中刚导入的孩子并提示成功；上传失败时保留导入前的云端状态。完整备份会替换账号全部记录，请先导出云端备份。
 
 ---
 
@@ -214,11 +208,11 @@ Magic link 登录后会跳回当前站点，应用从 URL hash 解析 `access_to
 # 从 template + schedule 重新生成 index.html
 node build.js
 
-# 单元测试（排程、五联覆盖、云同步合并逻辑等）
+# 单元测试（排程、五联覆盖、导入格式等）
 node test.js
 
-# 浏览器端到端（需本机 Chrome）
-npm install
+# 浏览器端到端（使用 Chromium / Chrome；可通过 CHROME_PATH 指定路径）
+npm ci
 node e2e.js
 ```
 
@@ -230,14 +224,14 @@ node e2e.js
 
 | 路径 | 说明 |
 |------|------|
-| `index.html` | **构建产物**：单文件离线应用（提交到仓库供 Pages 部署） |
-| `template.html` | 页面结构、样式与 UI 脚本（含 Supabase `fetch` 同步） |
+| `index.html` | **构建产物**：单文件应用（提交到仓库供 Pages 部署） |
+| `template.html` | 页面结构、样式与 UI 脚本（含 Supabase `fetch` 读写） |
 | `schedule.js` | 疫苗程序数据、下一针/时间轴/ICS 逻辑及可单测的同步辅助函数 |
 | `build.js` | `node build.js`：将 `schedule.js` 内联替换 `template.html` 中的占位符 |
 | `test.js` | Node 单元测试（含档案导入样例） |
 | `test/fixtures/` | 导入格式样例 JSON |
 | `auth-test.js` | Auth REST / 回跳参数检查（不发信） |
-| `e2e.js` | Puppeteer 端到端测试（系统 Chrome） |
+| `e2e.js` | Puppeteer 端到端测试（系统浏览器；模拟 Supabase，不实际发信或修改生产数据） |
 | `shots.js` / `repro.js` | 截图与复现辅助脚本 |
 | `package.json` | 依赖（主要为 `puppeteer-core`，仅开发/测试用） |
 | `.github/workflows/pages.yml` | CI 测试与 GitHub Pages 部署 |
