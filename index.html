@@ -79,6 +79,16 @@ button,select,input{font:inherit;color:inherit}
 .opt.on{border-color:var(--accent);background:var(--accent-soft)}.opt input{accent-color:var(--accent);width:16px;height:16px;margin:0}.opt small{display:block;font-size:12px;color:var(--muted)}
 .covered-note{margin-top:10px;padding-top:12px;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}.covered-note b{font-weight:500;margin-right:4px}.covered-note .chip{margin-left:0}
 .avail{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.avail summary{cursor:pointer;color:var(--muted);font-size:14px}
+#spPlan.panel{padding:0;overflow:hidden}
+.sp-plan-h{display:flex;align-items:center;gap:10px;width:100%;padding:16px 20px;border:0;background:transparent;cursor:pointer;text-align:left;font:inherit;color:inherit;border-radius:var(--r-panel)}
+.sp-plan-h:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}.sp-plan-h:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.sp-plan-h h3{margin:0;font-size:18px;font-weight:600;flex:none}
+.sp-plan-sum{flex:1;font-size:13.5px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-chev{flex:none;color:var(--faint);font-size:22px;line-height:1;transform:rotate(0deg);transition:transform .25s cubic-bezier(.16,1,.3,1)}
+#spPlan.sp-open .sp-chev{transform:rotate(90deg)}
+.sp-plan-body{max-height:0;opacity:0;overflow:hidden;padding:0 20px;transition:max-height .35s cubic-bezier(.16,1,.3,1),opacity .25s ease,padding .25s ease}
+#spPlan.sp-open .sp-plan-body{max-height:3200px;opacity:1;padding:0 20px 20px}
+.sp-plan-body .opts{margin-top:4px}
 .s-future,.s-expired,.s-alt,.s-unselected{color:var(--idle);background:var(--idle-soft)}
 .k-self{color:var(--muted);border:1px solid var(--line);background:none}
 /* 侧栏 */
@@ -121,7 +131,7 @@ dialog::backdrop{background:#0e1a1459}
  .hello h1{font-size:26px}.v{grid-template-columns:1fr}.v .act{grid-row:auto;grid-column:1;justify-self:start;margin-top:6px}
  dialog{width:100vw;max-width:100vw;margin:auto 0 0;border-radius:var(--r-panel) var(--r-panel) 0 0}
  #dform{padding:20px 18px calc(20px + env(safe-area-inset-bottom))}.d-acts .btn{flex:1;justify-content:center}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}#spPlan.sp-open .sp-plan-body{transition:none}}
 </style></head><body>
 <header class="top"><div class="top-in"><div class="brand">接种簿<small>中国儿童疫苗记录</small></div>
 <div class="sync" id="syncBar"><span class="dot off" id="syncDot" aria-hidden="true"></span><span id="syncText">远端存储 · 请先登录</span><button class="btn sm" type="button" id="syncBtn" onclick="syncAction()">登录</button></div>
@@ -432,7 +442,7 @@ if(typeof module!=='undefined')module.exports=API;else root.VT=API;
 
 </script>
 <script>
-const AUTH_KEY='vt_auth_v1';let tab='dash';
+const AUTH_KEY='vt_auth_v1';let tab='dash',spPlanOpen=false;
 // 本机仅记住登录会话；业务数据只在本页内存中显示，不写入浏览器存储。
 const store=(()=>{try{return window.localStorage}catch(e){return null}})();
 const emptyState=()=>({children:[],cur:null});
@@ -504,6 +514,8 @@ const esc=s=>String(s??'').replace(/[—–]/g,'-').replace(/[&<>"]/g,c=>({'&':'
 const ST={done:'已完成',soon:'即将到期',overdue:'逾期需补种',future:'未到时间',expired:'已超龄',alt:'不适用',covered:'联合疫苗覆盖',unselected:'未选择'};
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 const short=n=>String(n||'').replace(/\(.*$/,'').replace('疫苗','');
+function spPlanSummary(c,catalog){const sel=catalog.filter(v=>VT.isSelected(c,v));if(!sel.length)return'未选择';const names=sel.map(v=>short(v.name));return'已选 '+names.length+' 项：'+names.slice(0,5).join('、')+(names.length>5?' 等':'');}
+function toggleSpPlan(){spPlanOpen=!spPlanOpen;render();}
 const days=d=>Math.round((VT.parse(d)-VT.parse(today()))/864e5);
 const rel=d=>{const n=days(d);return n<0?`已逾期 ${-n} 天`:n===0?'今天':`${n} 天后`};
 const md=d=>{const [y,m,dd]=d.split('-');return `${+m}月${+dd}日`};
@@ -535,19 +547,20 @@ function renderInner(){
   ${!['done','expired','alt','covered','unselected'].includes(s.status)?`<div class="act"><button class="btn sm" onclick="addRec('${s.id}')">记录接种</button></div>`:''}
   ${s.status==='overdue'&&s.catchupNote?`<div class="tip">补种原则：${esc(s.catchupNote)}</div>`:''}</div>`;
  const spCatalog=VT.selfPaidCatalog(c);
- const spPanel=`<section class="panel" id="spPlan"><div class="sec-h"><h3>自费疫苗计划</h3><span class="faint">勾选后纳入提醒；此处为唯一入口</span></div>
-  <div class="opts">${spCatalog.map(v=>{const on=VT.isSelected(c,v),rec=(c.records||[]).some(r=>r.vid===v.id);return `<label class="opt ${on?'on':''}"><input type="checkbox" data-sp="${v.id}" ${on?'checked':''} onchange="toggleSP('${v.id}',this.checked)"><span>${esc(v.name)}${rec?'<small>已有接种记录</small>':v.excl?'<small>轮状疫苗二选一</small>':''}</span></label>`}).join('')}</div>
-  <p class="faint" style="margin-top:10px">选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。曼海欣(MCV4)程序依首剂年龄而定，可按《2026年版免疫程序》替代相应免费流脑剂次（详见疫苗说明）。取消勾选后不再提醒，但已有接种记录仍会显示。</p></section>`;
+ const spSum=spPlanSummary(c,spCatalog);
+ const spPanel=`<section class="panel sp-plan${spPlanOpen?' sp-open':''}" id="spPlan"><button type="button" class="sp-plan-h" onclick="toggleSpPlan()" aria-expanded="${spPlanOpen?'true':'false'}" aria-controls="spPlanBody"><h3>自费疫苗计划</h3><span class="sp-plan-sum">${esc(spSum)}</span><span class="sp-chev" aria-hidden="true">›</span></button>
+  <div id="spPlanBody" class="sp-plan-body"><div class="opts">${spCatalog.map(v=>{const on=VT.isSelected(c,v),rec=(c.records||[]).some(r=>r.vid===v.id);return `<label class="opt ${on?'on':''}"><input type="checkbox" data-sp="${v.id}" ${on?'checked':''} onchange="toggleSP('${v.id}',this.checked)"><span>${esc(v.name)}${rec?'<small>已有接种记录</small>':v.excl?'<small>轮状疫苗二选一</small>':''}</span></label>`}).join('')}</div>
+  <p class="faint" style="margin-top:10px">勾选后纳入提醒（唯一入口）。选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。曼海欣(MCV4)程序依首剂年龄而定，可按《2026年版免疫程序》替代相应免费流脑剂次（详见疫苗说明）。取消勾选后不再提醒，但已有接种记录仍会显示。</p></div></section>`;
  const tools=`<div class="tools"><button class="btn sm" onclick="editChild(cur())">编辑资料</button><button class="btn sm" onclick="exportICS()">导出日历</button><button class="btn sm" onclick="exportChildJSON()">导出档案</button><button class="btn sm" onclick="exportJSON()">导出备份</button><button class="btn sm" onclick="$('imp').click()">导入备份</button><button class="btn sm link danger" onclick="delChild()">删除孩子</button></div>`;
- const cnt=k=>plan.filter(s=>s.nip&&s.status===k).length;
+ const statRow=s=>s.nip||s.selected;
+ const cnt=k=>plan.filter(s=>statRow(s)&&s.status===k).length;
  const aside=`<aside class="panel aside who"><h2>${esc(c.name)}</h2><p class="muted">${c.sex==='F'?'女孩':'男孩'}，${VT.ageText(c.birth,today())}<span class="faint">（${c.birth} 出生）</span></p>
-  <div class="nums"><div class="late"><b>${cnt('overdue')}</b><span>免费疫苗逾期</span></div><div class="soon"><b>${cnt('soon')}</b><span>30 天内到期</span></div><div><b>${cnt('done')}</b><span>免费疫苗已完成</span></div><div><b>${(c.records||[]).length}</b><span>接种记录</span></div></div>${tools}</aside>`;
+  <div class="nums"><div class="late"><b>${cnt('overdue')}</b><span>疫苗逾期</span></div><div class="soon"><b>${cnt('soon')}</b><span>30 天内到期</span></div><div><b>${cnt('done')}</b><span>计划内已完成</span></div><div><b>${(c.records||[]).length}</b><span>接种记录</span></div></div>${tools}</aside>`;
  let h='';
- if(tab==='dash'){const up=VT.upcoming(c,today()),nip=up.filter(s=>s.nip),n=nip[0];
-  const hero=n?`<section class="panel next ${n.status==='overdue'?'late':''}" aria-label="下一针"><div class="when">${n.status==='overdue'?'尽快补种':md(n.due)}<small>${n.status==='overdue'?'已过推荐时间':rel(n.due)}</small></div><div class="what"><h2>下一针：${esc(n.name)}</h2><p>${esc(n.nextLabel)}${n.status==='overdue'?'。补种前请先咨询接种门诊':''}</p></div>
-   <div class="acts"><button class="btn" onclick="addRec('${n.id}')">记录接种</button><button class="btn ghost" onclick="exportICS()">导出日历</button></div></section>`:`<section class="panel next"><div class="what"><h2>免费疫苗都已完成</h2><p class="muted">可以看看下方的自费疫苗。</p></div></section>`;
-  h=`<div class="grid"><div class="stack">${hero}<section class="panel" id="upNip"><div class="sec-h"><h3>待接种</h3><span class="faint">按日期排序</span></div>${nip.map(row).join('')||'<p class="muted">没有待接种的免费疫苗。</p>'}${(()=>{const cv=plan.filter(x=>x.status==='covered');return cv.length?`<div class="covered-note"><b>由${esc(short(cv[0].coveredBy))}覆盖，不单独提醒</b>${cv.map(x=>`<span class="chip s-covered">${esc(x.name.replace(/\(.*$/,''))}${x.laterDue?' 前4剂':''}</span>`).join('')}</div>`:''})()}</section>
-  <section class="panel" id="upSelf"><div class="sec-h"><h3>自费疫苗提醒</h3><span class="faint">仅已勾选或有记录</span></div>${up.filter(s=>!s.nip).map(row).join('')||'<p class="muted" style="padding:6px 0">暂无待接种的自费疫苗。请在下方「自费疫苗计划」中勾选。</p>'}</section>
+ if(tab==='dash'){const up=VT.upcoming(c,today()),n=up[0];
+  const hero=n?`<section class="panel next ${n.status==='overdue'?'late':''}" aria-label="下一针"><div class="when">${n.status==='overdue'?'尽快补种':md(n.due)}<small>${n.status==='overdue'?'已过推荐时间':rel(n.due)}</small></div><div class="what"><h2>下一针：${esc(n.name)}</h2><p>${esc(n.nextLabel)}${!n.nip?' <span class="chip k-self">自费</span>':''}${n.status==='overdue'?'。补种前请先咨询接种门诊':''}</p></div>
+   <div class="acts"><button class="btn" onclick="addRec('${n.id}')">记录接种</button><button class="btn ghost" onclick="exportICS()">导出日历</button></div></section>`:`<section class="panel next"><div class="what"><h2>当前没有待接种提醒</h2><p class="muted">可在下方勾选自费疫苗，或在「全部疫苗」中查看进度。</p></div></section>`;
+  h=`<div class="grid"><div class="stack">${hero}<section class="panel" id="upNip"><div class="sec-h"><h3>待接种</h3><span class="faint">免疫规划与已选自费，按日期排序</span></div>${up.map(row).join('')||'<p class="muted">没有待接种的疫苗。</p>'}${(()=>{const cv=plan.filter(x=>x.status==='covered');return cv.length?`<div class="covered-note"><b>由${esc(short(cv[0].coveredBy))}覆盖，不单独提醒</b>${cv.map(x=>`<span class="chip s-covered">${esc(x.name.replace(/\(.*$/,''))}${x.laterDue?' 前4剂':''}</span>`).join('')}</div>`:''})()}</section>
   ${spPanel}</div><div class="stack">${aside}</div></div>`;}
  if(tab==='all'){h=`<div class="cols"><section class="panel"><div class="sec-h"><h3>免疫规划疫苗</h3><span class="faint">免费</span></div>${plan.filter(s=>s.nip).map(row).join('')}</section>
   <section class="panel"><div class="sec-h"><h3>非免疫规划疫苗</h3><span class="faint">自费、自愿</span></div>${plan.filter(s=>!s.nip&&(s.selected||s.given>0)).map(row).join('')||'<p class="muted">尚未选择自费疫苗，可在概览页「自费疫苗计划」中勾选。</p>'}<p class="faint" style="margin-top:10px">记录五联疫苗(DTaP-IPV/Hib)后，对应剂次的百白破、脊灰、Hib 会自动计为已完成。2026 年版免疫规划为 13 周岁女孩免费接种 2 剂双价 HPV；自费四价、九价以说明书为准。</p></section></div>`;}
