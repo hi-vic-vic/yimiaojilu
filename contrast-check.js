@@ -1,12 +1,17 @@
 // Quick WCAG contrast sanity check for key UI pairs (AA normal text ≥ 4.5:1).
 const pairs=[
- ['text on surface','#1a221e','#f8faf8'],
- ['muted on surface','#3f4f47','#f8faf8'],
- ['hero chip on accent','#f4f7f4','#2f6b58'],
- ['hero chip border context','#f4f7f4','#2f6b58'],
- ['late chip on surface','#9a382e','#f6e4e1'],
+ ['text on surface','#1c2420','#faf8f4'],
+ ['muted on surface','#3d4a44','#faf8f4'],
+ ['text on warm bg','#1c2420','#f0ede6'],
+ ['hero chip on accent gradient','#f7faf8','#4a7d68'],
+ ['hero chip on accent deep','#f7faf8','#3a6654'],
+ ['late chip on surface','#9a382e','#f6e8e5'],
  ['soon chip on surface','#7a4e0c','#f5ecd9'],
- ['accent button ink','#f4f7f4','#2f6b58'],
+ ['primary button on clay','#f7faf8','#4a7d68'],
+ ['stat late on tile','#9a382e','#faf8f4'],
+ ['stat ok on tile','#356b58','#faf8f4'],
+ ['dark text on dark mode surface','#eceee9','#1e2421'],
+ ['dark muted on dark surface','#b8c4bc','#1e2421'],
 ];
 function lin(c){const v=c/255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)}
 function lum(hex){const n=hex.replace('#','');const r=parseInt(n.slice(0,2),16),g=parseInt(n.slice(2,4),16),b=parseInt(n.slice(4,6),16);return 0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b)}
