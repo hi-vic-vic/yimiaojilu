@@ -86,6 +86,15 @@ function addDays(d,n){return new Date(d.getTime()+n*DAY);}
 // records: [{vid,dose(0-based),date,batch,note}]
 // 自费疫苗是否纳入计划：selfPaid[id]===false 明确取消时不再提醒（已有记录仍计数）；selfPaid[id]===true 或已有接种记录（且未明确取消）视为已选。旧备份无 selfPaid 字段时同样适用。
 function isSelected(child,v){if(v.nip)return true;const sp=child.selfPaid||{};if(sp[v.id]===false)return false;return sp[v.id]===true||(child.records||[]).some(r=>r.vid===v.id);}
+function selfPaidCatalog(child){return V.filter(v=>{if(v.nip||v.catchupOnly)return false;if(v.sexOnly&&child.sex&&child.sex!==v.sexOnly)return false;return true;});}
+function normalizeChildSelfPaid(child){
+ if(!child)return;
+ const sp=child.selfPaid||(child.selfPaid={});
+ (child.records||[]).forEach(r=>{const v=vaccineById(r.vid);if(v&&!v.nip&&sp[r.vid]!==false)sp[r.vid]=true;});
+ const rota=V.filter(v=>v.excl==='rota');const picked=rota.filter(v=>isSelected(child,v));
+ if(picked.length>1){const keep=picked.find(v=>(child.records||[]).some(r=>r.vid===v.id))||picked[0];rota.forEach(v=>{if(v.id!==keep.id)sp[v.id]=false;});}
+ if(!Object.keys(sp).length)delete child.selfPaid;
+}
 // covers 通用机制：coverer.covers = {目标疫苗id: [目标剂次下标...]}，coverer 第 i 剂覆盖目标第 covers[t][i] 剂。
 function seriesPlan(child,today){
  today=today?parse(today):parse(new Date().toISOString().slice(0,10));
@@ -168,7 +177,9 @@ function decodeJwtPayload(token){const p=String(token||'').split('.');return p.l
 function normalizeAppState(d){
  if(!d||typeof d!=='object'||!Array.isArray(d.children))return null;
  const cur=d.cur!=null&&d.children.some(c=>c&&c.id===d.cur)?d.cur:(d.children[0]?.id??null);
- return JSON.parse(JSON.stringify({children:d.children,cur}));
+ const state=JSON.parse(JSON.stringify({children:d.children,cur}));
+ state.children.forEach(normalizeChildSelfPaid);
+ return state;
 }
 function appStateFingerprint(d){const n=normalizeAppState(d);return n?JSON.stringify(n):'';}
 function appStatesEqual(a,b){return appStateFingerprint(a)===appStateFingerprint(b);}
@@ -273,7 +284,7 @@ function importIntoState(state,raw,onConflict){
  if(added&&updated)message+='（新增 '+added+' 人，更新 '+updated+' 人）';else if(added)message+='（新增 '+added+' 个孩子）';else if(updated)message+='（已更新 '+updated+' 个孩子）';
  return{ok:true,state:st,cur:st.cur,message,warnings,imported:totalImported,skipped:totalSkipped};
 }
-const API={isSelected,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
+const API={isSelected,selfPaidCatalog,normalizeChildSelfPaid,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
  SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh,
  ADDON_IMPORT,ADDON_EXPORT,convertSingleChildExport,exportSingleChild,detectImportFormat,mergeChildRecords,importIntoState,isValidRecordDate,parseDoseKey,
  ageInMonths,mcv4BandFromMonths,mcv4BandFirst,mcv4Spec,mcv4Series,applyMcv4NationalCoverage};

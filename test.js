@@ -114,4 +114,10 @@ assert.equal(VT.importIntoState({children:[],cur:null},[{profile:xunbao.profile,
  assert.ok(['future','soon','overdue'].includes(plan.find(s=>s.id==='mpsvac').status));})();
 assert.ok(VT.ADDON_IMPORT.mcv4==='mcv4');
 assert.ok(VT.parseDoseKey('mcv4-1').ok&&VT.parseDoseKey('mcv4-1').vid==='mcv4');
+// 自费疫苗目录与 selfPaid 迁移
+assert.ok(VT.selfPaidCatalog({birth:'2026-01-01',sex:'M'}).some(v=>v.id==='mcv4'));
+assert.ok(!VT.selfPaidCatalog({birth:'2026-01-01',sex:'M'}).some(v=>v.id==='hpv'));
+const mig={birth:'2026-01-01',records:[{vid:'rv3',date:'2026-03-01'}],selfPaid:{rv3:true,rv5:true}};
+VT.normalizeChildSelfPaid(mig);assert.equal(mig.selfPaid.rv5,false);assert.equal(mig.selfPaid.rv3,true);
+assert.deepEqual(VT.normalizeAppState({children:[{id:'1',birth:'2026-01-01',records:[{vid:'penta',date:'2026-04-01'}],selfPaid:{}}],cur:'1'}).children[0].selfPaid.penta,true);
 console.log('All tests passed');
