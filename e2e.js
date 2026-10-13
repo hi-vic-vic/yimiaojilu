@@ -44,7 +44,9 @@ const child=(id,name)=>({id,name,birth:'2026-04-01',sex:'F',records:[],selfPaid:
  assert.equal(remote.a.children[0].name,'云端小红');assert.deepEqual(await pg.evaluate(()=>JSON.parse(localStorage.getItem('vt_data_v1'))),legacy);
  assert.equal(await pg.$eval('.picker button',e=>e.disabled),false);
  await pg.reload();await waitReady();assert.match(await pg.$eval('#main',e=>e.innerText),/云端小红/);
+ assert(await pg.$('#spPlan'));assert.equal(await pg.$('.avail'),null);assert.match(await pg.$eval('#spPlan .sec-h',e=>e.innerText),/唯一入口/);
  check('添加孩子仅写远端，刷新从远端恢复，旧本机数据不变');
+ check('概览页仅保留一处自费疫苗计划勾选，无「可选的自费疫苗」重复入口');
  await pg.evaluate(()=>addRec('hepb'));await pg.$eval('input[name=date]',e=>e.value='2026-04-01');await pg.click('#dform button.p');await pg.waitForFunction(()=>S.children[0].records.length===1&&!syncBusy);
  assert.equal(remote.a.children[0].records[0].vid,'hepb');
  await pg.evaluate(()=>addRec(null,0));await pg.type('input[name=note]','门诊记录');await pg.click('#dform button.p');await pg.waitForFunction(()=>S.children[0].records[0].note==='门诊记录'&&!syncBusy);
