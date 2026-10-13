@@ -59,19 +59,24 @@ button,select,input{font:inherit;color:inherit}
 .panel{background:var(--surface);border-radius:var(--r-panel);border:1px solid color-mix(in srgb,var(--line) 85%,transparent);padding:24px;box-shadow:var(--shadow-soft)}
 .bento{display:grid;gap:20px;grid-template-columns:1fr;grid-template-areas:"hero" "stats" "rail" "up" "sp";align-items:start}
 .bento-hero{grid-area:hero}.bento-stats{grid-area:stats;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.bento-rail{grid-area:rail;display:flex;flex-direction:column;gap:16px}.bento-rail>.panel{align-self:start;width:100%}
-.bento-up{grid-area:up;align-self:start;display:flex;flex-direction:column;max-height:min(560px,72vh);min-height:0}
-.bento-up .up-scroll{overflow-y:auto;flex:1;min-height:0;padding-right:2px;margin:0 -4px;padding-left:4px}
-.bento-up .up-more{margin-top:12px;align-self:flex-start}
+.bento-rail{grid-area:rail;display:flex;flex-direction:column;gap:16px;width:100%}
+.bento-up{grid-area:up;display:flex;flex-direction:column;min-height:0}
+.bento-up .up-inner{display:flex;flex-direction:column;flex:1;min-height:0}
+.bento-up .up-foot{margin-top:auto;padding-top:4px}
 .bento-sp{grid-area:sp}
 .stat-tile{padding:18px 20px;display:flex;flex-direction:column;justify-content:center;gap:4px;min-height:88px}
 .stat-tile b{font-size:32px;line-height:1;font-weight:700;letter-spacing:-.02em}
 .stat-tile span{font-size:13px;color:var(--muted);line-height:1.4}
 .stat-tile.late b{color:var(--late)}.stat-tile.soon b{color:var(--soon)}.stat-tile.done b{color:var(--ok)}
-@media (min-width:861px){.bento{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:auto auto auto auto auto;gap:20px;
- grid-template-areas:"hero hero hero stat-late" "hero hero hero stat-soon" "hero hero hero stat-done" "up up rail rail" "sp sp sp sp"}
+@media (min-width:861px){.bento{grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:auto auto auto 1fr auto;gap:20px;align-items:stretch;
+ grid-template-areas:"hero hero hero hero stat-late stat-late" "hero hero hero hero stat-soon stat-soon" "hero hero hero hero stat-done stat-done" "up up up rail rail rail" "sp sp sp sp sp sp"}
  .bento-stats{display:contents}
- .stat-tile.stat-late{grid-area:stat-late}.stat-tile.stat-soon{grid-area:stat-soon}.stat-tile.stat-done{grid-area:stat-done}}
+ .stat-tile.stat-late{grid-area:stat-late}.stat-tile.stat-soon{grid-area:stat-soon}.stat-tile.stat-done{grid-area:stat-done}
+ .bento-up{align-self:stretch;height:100%}
+ .bento-rail{align-self:stretch;min-height:100%;height:100%}
+ .bento-rail>.panel{flex:0 0 auto}
+ .bento-rail>.panel:last-child{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+ .bento-ahead .ahead-list,.bento-ahead>p.muted{flex:1 1 auto}}
 /* 下一针 · clay */
 .next{display:grid;grid-template-columns:auto 1fr;gap:4px 28px;align-items:center;padding:32px 32px 28px;border-radius:var(--r-hero);
  background:linear-gradient(152deg,color-mix(in srgb,var(--accent) 92%,var(--mint)),var(--accent-deep) 58%,var(--accent-deep));
@@ -111,7 +116,7 @@ button,select,input{font:inherit;color:inherit}
  transition:transform .2s,border-color .2s,box-shadow .2s}
 .opt:hover{box-shadow:0 4px 12px -6px #3d5a4a18}.opt:active{transform:scale(.99)}
 .opt.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 1px 2px #3d5a4a0a,0 2px 8px -4px #3d5a4a14}.opt input{accent-color:var(--accent);width:16px;height:16px;margin:0}.opt small{display:block;font-size:12px;color:var(--muted)}
-.covered-note{margin-top:10px;padding-top:12px;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}.covered-note b{font-weight:500;margin-right:4px}.covered-note .chip{margin-left:0}
+.covered-note{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}.covered-note b{font-weight:500;margin-right:4px}.covered-note .chip{margin-left:0}
 .avail{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.avail summary{cursor:pointer;color:var(--muted);font-size:14px}
 #spPlan.panel{padding:0;overflow:hidden}
 .sp-plan-h{display:flex;align-items:center;gap:10px;width:100%;padding:18px 20px;border:0;background:transparent;cursor:pointer;text-align:left;font:inherit;color:inherit;border-radius:var(--r-panel);min-height:56px}
@@ -199,7 +204,7 @@ dialog::backdrop{background:#1a221e66}
 /*__SCHEDULE__*/
 </script>
 <script>
-const AUTH_KEY='vt_auth_v1';let tab='dash',spPlanOpen=false,upNipExpanded=false;
+const AUTH_KEY='vt_auth_v1';let tab='dash',spPlanOpen=false;
 // 本机仅记住登录会话；业务数据只在本页内存中显示，不写入浏览器存储。
 const store=(()=>{try{return window.localStorage}catch(e){return null}})();
 const emptyState=()=>({children:[],cur:null});
@@ -273,7 +278,6 @@ const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOStr
 const short=n=>String(n||'').replace(/\(.*$/,'').replace('疫苗','');
 function spPlanSummary(c,catalog){const sel=catalog.filter(v=>VT.isSelected(c,v));if(!sel.length)return'未选择';const names=sel.map(v=>short(v.name));return'已选 '+names.length+' 项：'+names.slice(0,5).join('、')+(names.length>5?' 等':'');}
 function toggleSpPlan(){spPlanOpen=!spPlanOpen;render();}
-function toggleUpNip(){upNipExpanded=!upNipExpanded;render();}
 function doseProg(plan,nip){const rows=plan.filter(s=>nip?s.nip:(!s.nip&&(s.selected||s.given>0)));let g=0,t=0;rows.forEach(s=>{g+=s.given;t+=s.total});return{g,t,pct:t?Math.min(100,Math.round(100*g/t)):0,empty:!rows.length}}
 function progBlock(label,prog,cls,emptyHint){return `<div class="prog-block ${cls||''}"><div class="prog-head"><span>${label}</span><span class="faint">${prog.empty?emptyHint:`${prog.g}/${prog.t} 剂`}</span></div><div class="prog-track" role="progressbar" aria-valuenow="${prog.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="${label}"><div class="prog-fill" style="width:${prog.pct}%"></div></div></div>`}
 const days=d=>Math.round((VT.parse(d)-VT.parse(today()))/864e5);
@@ -330,11 +334,10 @@ function renderInner(){
   const whoPanel=`<aside class="panel bento-tile bento-who who"><h2>${esc(c.name)}</h2><p class="muted">${c.sex==='F'?'女孩':'男孩'}，${VT.ageText(c.birth,T)}<span class="faint">（${c.birth} 出生）</span></p>
   <p class="faint" style="margin-top:8px">已录入 ${(c.records||[]).length} 条接种记录</p>${actBlock}</aside>`;
   const rail=`<div class="bento-rail">${whoPanel}${progPanel}${recentPanel}${aheadPanel}</div>`;
-  const UP_SHOW=6;const upRows=up.map(row);const upVis=upNipExpanded?upRows:upRows.slice(0,UP_SHOW);
-  const upMore=upRows.length>UP_SHOW?`<button type="button" class="btn sm link up-more" onclick="toggleUpNip()">${upNipExpanded?'收起列表':`显示全部 ${upRows.length} 项`}</button>`:'';
-  const upBody=upRows.length?`<div class="up-scroll">${upVis.join('')}</div>${upMore}`:'<p class="muted">没有待接种的疫苗。</p>';
   const coveredNote=(()=>{const cv=plan.filter(x=>x.status==='covered');return cv.length?`<div class="covered-note"><b>由${esc(short(cv[0].coveredBy))}覆盖，不单独提醒</b>${cv.map(x=>`<span class="chip s-covered">${esc(x.name.replace(/\(.*$/,''))}${x.laterDue?' 前4剂':''}</span>`).join('')}</div>`:''})();
-  h=`<div class="bento">${hero}${stats}${rail}<section class="panel bento-tile bento-up" id="upNip"><div class="sec-h"><h3>待接种</h3><span class="faint">免疫规划与已选自费，按日期排序</span></div>${upBody}${coveredNote}</section>
+  const upList=up.length?up.map(row).join(''):'<p class="muted">没有待接种的疫苗。</p>';
+  const upInner=`<div class="up-inner"><div class="up-list">${upList}</div>${coveredNote?`<div class="up-foot">${coveredNote}</div>`:''}</div>`;
+  h=`<div class="bento">${hero}${stats}${rail}<section class="panel bento-tile bento-up" id="upNip"><div class="sec-h"><h3>待接种</h3><span class="faint">免疫规划与已选自费，按日期排序</span></div>${upInner}</section>
   ${spPanel.replace('class="panel sp-plan','class="panel bento-tile bento-sp sp-plan')}</div>`;}
  if(tab==='all'){h=`<div class="cols"><section class="panel"><div class="sec-h"><h3>免疫规划疫苗</h3><span class="faint">免费</span></div>${plan.filter(s=>s.nip).map(row).join('')}</section>
   <section class="panel"><div class="sec-h"><h3>非免疫规划疫苗</h3><span class="faint">自费、自愿</span></div>${plan.filter(s=>!s.nip&&(s.selected||s.given>0)).map(row).join('')||'<p class="muted">尚未选择自费疫苗，可在概览页「自费疫苗计划」中勾选。</p>'}<p class="faint" style="margin-top:10px">记录五联疫苗(DTaP-IPV/Hib)后，对应剂次的百白破、脊灰、Hib 会自动计为已完成。2026 年版免疫规划为 13 周岁女孩免费接种 2 剂双价 HPV；自费四价、九价以说明书为准。</p></section></div>`;}
