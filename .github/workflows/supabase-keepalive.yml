@@ -1,0 +1,48 @@
+# Ping Supabase PostgREST on a schedule so the free project stays active (~7-day pause).
+# Uses the public anon key only (same as schedule.js). Does not deploy Pages or touch main.
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: "0 1 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Supabase URL and anon key from schedule.js
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const src = fs.readFileSync('schedule.js', 'utf8');
+          const url = src.match(/SUPABASE_URL='([^']+)'/);
+          const key = src.match(/SUPABASE_ANON_KEY='([^']+)'/);
+          if (!url || !key) {
+            console.error('Could not parse SUPABASE_URL or SUPABASE_ANON_KEY from schedule.js');
+            process.exit(1);
+          }
+          const out = process.env.GITHUB_ENV;
+          fs.appendFileSync(out, `SUPABASE_URL=${url[1]}\n`);
+          fs.appendFileSync(out, `SUPABASE_ANON_KEY=${key[1]}\n`);
+          NODE
+
+      - name: GET vaccine_data (Postgres via PostgREST)
+        run: |
+          curl --silent --show-error --fail --retry 3 --retry-delay 5 --retry-all-errors \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/vaccine_data?select=user_id&limit=1"
+
+      - name: Re-enable this workflow (avoid 60-day scheduled-workflow disable)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method PUT \
+            "/repos/${GITHUB_REPOSITORY}/actions/workflows/supabase-keepalive.yml/enable"
