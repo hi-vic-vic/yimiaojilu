@@ -109,6 +109,21 @@ create policy "vaccine_data_own_row" on public.vaccine_data
 - 前端使用的 **anon（公开）key** 按设计可写在 `schedule.js` 并随 `index.html` 发布；在 **RLS 已正确配置** 的前提下，匿名用户无法读写他人数据，也无法绕过策略批量访问。
 - **切勿** 将 **service_role** key、**Resend API key** 或其它 SMTP 密码写入仓库或前端；这些密钥只应保存在 Supabase 控制台或 Resend 控制台。
 
+### Supabase 空闲保活（GitHub Actions）
+
+Supabase **免费项目**在约 **7 天无数据库活动**后可能被自动暂停。本仓库通过 [`.github/workflows/supabase-keepalive.yml`](.github/workflows/supabase-keepalive.yml) 定期访问 PostgREST，让 Postgres 产生轻量查询，从而避免暂停。
+
+| 项目 | 说明 |
+|------|------|
+| **触发** | 每 **3 天** 一次（UTC `0 1 */3 * *`），以及 **workflow_dispatch** 手动运行 |
+| **请求** | `GET /rest/v1/vaccine_data?select=user_id&limit=1`，请求头使用 `schedule.js` 中的 **anon key**（与前端相同，**不使用** service_role） |
+| **RLS** | 匿名请求通常返回空数组 `[]`，属预期；HTTP **2xx** 即表示数据库已响应 |
+| **与 Pages 的关系** | 该工作流**不会**构建或部署站点，也**不会**向 `main` 提交空 commit；与 [Pages 工作流](.github/workflows/pages.yml) 独立 |
+| **定时任务被 GitHub 关闭** | 若仓库长期无 push，GitHub 可能在约 60 天后禁用 schedule。本工作流在每次成功运行时会调用 GitHub API **重新启用自身**（需 `actions: write`，不依赖 commit 保活） |
+| **手动运行** | 打开 [Actions → Supabase keepalive](https://github.com/hi-vic-vic/yimiaojilu/actions/workflows/supabase-keepalive.yml) → **Run workflow** |
+
+同一 Supabase 项目也会被 **feeding-log（喂养记录）** 等应用共用；本保活任务一次 ping 即可让**整个项目**保持活跃，受益的不只是接种簿。
+
 ### Authentication → URL configuration（必填）
 
 | 字段 | 建议值 |
