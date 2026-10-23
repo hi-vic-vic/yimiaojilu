@@ -45,7 +45,8 @@ jobs:
       - name: Prepare site artifact
         run: |
           mkdir -p _site
-          cp index.html _site/
+          cp index.html manifest.webmanifest _site/
+          cp -r icons _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
