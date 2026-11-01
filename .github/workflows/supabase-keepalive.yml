@@ -1,10 +1,10 @@
-# Ping Supabase PostgREST on a schedule so the free project stays active (~7-day pause).
+# Ping Supabase daily with a real write (supabase/keepalive.sql) so the free project stays active (~7-day pause).
 # Uses the public anon key only (same as schedule.js). Does not deploy Pages or touch main.
 name: Supabase keepalive
 
 on:
   schedule:
-    - cron: "0 1 */3 * *"
+    - cron: "0 1 * * *"
   workflow_dispatch:
 
 permissions:
@@ -39,6 +39,17 @@ jobs:
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
             "${SUPABASE_URL}/rest/v1/vaccine_data?select=user_id&limit=1"
+
+      - name: Write heartbeat row (rpc/keepalive, see supabase/keepalive.sql)
+        run: |
+          curl --silent --show-error --fail --retry 3 --retry-delay 5 --retry-all-errors \
+            -X POST \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            "${SUPABASE_URL}/rest/v1/rpc/keepalive"
+          echo
 
       - name: Re-enable this workflow (avoid 60-day scheduled-workflow disable)
         env:
