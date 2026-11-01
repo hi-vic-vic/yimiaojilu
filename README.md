@@ -111,11 +111,11 @@ create policy "vaccine_data_own_row" on public.vaccine_data
 
 ### Supabase 空闲保活（GitHub Actions）
 
-Supabase **免费项目**在约 **7 天无数据库活动**后可能被自动暂停。本仓库通过 [`.github/workflows/supabase-keepalive.yml`](.github/workflows/supabase-keepalive.yml) 定期访问 PostgREST，让 Postgres 产生轻量查询，从而避免暂停。
+Supabase **免费项目**在约 **7 天无数据库活动**后可能被自动暂停。本仓库通过 [`.github/workflows/supabase-keepalive.yml`](.github/workflows/supabase-keepalive.yml) 每天访问 PostgREST：读一次 `vaccine_data`，并调用 `rpc/keepalive` 往 `keepalive` 表真实写入一行心跳，避免暂停。只读访问实测不够，Supabase 仍会发闲置预警。首次使用需在 Supabase SQL Editor 执行一次 [`supabase/keepalive.sql`](supabase/keepalive.sql)。
 
 | 项目 | 说明 |
 |------|------|
-| **触发** | 每 **3 天** 一次（UTC `0 1 */3 * *`），以及 **workflow_dispatch** 手动运行 |
+| **触发** | 每天一次（UTC `0 1 * * *`，北京时间 9:00），以及 **workflow_dispatch** 手动运行 |
 | **请求** | `GET /rest/v1/vaccine_data?select=user_id&limit=1`，请求头使用 `schedule.js` 中的 **anon key**（与前端相同，**不使用** service_role） |
 | **RLS** | 匿名请求通常返回空数组 `[]`，属预期；HTTP **2xx** 即表示数据库已响应 |
 | **与 Pages 的关系** | 该工作流**不会**构建或部署站点，也**不会**向 `main` 提交空 commit；与 [Pages 工作流](.github/workflows/pages.yml) 独立 |
