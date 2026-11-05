@@ -153,7 +153,9 @@ function seriesPlan(child,today){
   }
   if(v.catchupOnly){const dn=combined('dtap').length;const age7=today>=addAge(birth,{y:7});
    if(status!=='done'&&(!age7||dn>=5)){status='alt';due=null;}}
-  out.push({id:v.id,name:v.name,group:v.group,nip:v.nip,excl:v.excl||null,selected:sel,given:Math.min(n,v.doses.length),total:v.doses.length,status,due:due?fmt(due):null,nextLabel,coveredBy,laterDue,laterLabel,catchupNote:v.catchup||'',perProduct:!!v.perProduct,optional:!v.nip});
+  let note='';
+  if(v.id==='mpsvac'&&status!=='done'){const mr=done('mcv4');if(mr.length&&mr.some(r=>ageInMonths(child.birth,r.date)<36))note='婴幼儿期接种的曼海欣(MCV4)已替代A群流脑2剂，但按国家免疫程序不替代3岁、6岁这2剂A群C群；届时可打免费A群C群，或改打1剂含A、C群的疫苗（如曼海欣，说明书适用至6周岁）代替，二选一，不必重复。';}
+  out.push({id:v.id,name:v.name,group:v.group,nip:v.nip,excl:v.excl||null,selected:sel,given:Math.min(n,v.doses.length),total:v.doses.length,status,due:due?fmt(due):null,nextLabel,coveredBy,laterDue,laterLabel,catchupNote:v.catchup||'',perProduct:!!v.perProduct,optional:!v.nip,mcv4Note:note});
  }
  return out;
 }
