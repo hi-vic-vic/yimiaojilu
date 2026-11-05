@@ -23,7 +23,9 @@ const V=[
  {id:'rv5',name:'5价轮状病毒疫苗(口服)',group:'轮状',excl:'rota',nip:false,doses:[{age:{w:6},label:'第1剂(6-12周龄)'},{age:{w:10},minInt:28,label:'第2剂'},{age:{w:14},minInt:28,label:'第3剂(32周龄前完成)'}],maxAge:{w:32},perProduct:true},
  {id:'rv3',name:'三价轮状病毒疫苗(口服，兰州所)',group:'轮状',excl:'rota',nip:false,doses:[{age:{w:6},label:'第1剂(6-13周龄开始)'},{age:{w:10},minInt:30,label:'第2剂(间隔1个月)'},{age:{w:14},minInt:30,label:'第3剂(不晚于32周龄)'}],maxAge:{w:32},perProduct:true,catchup:'首剂6-13周龄，间隔1个月，第3剂不晚于32周龄；与5价轮状二选一。'},
  {id:'var',name:'水痘疫苗',group:'水痘',nip:false,doses:[{age:{m:12},label:'第1剂'},{age:{y:4},minInt:90,label:'第2剂'}],perProduct:true},
- {id:'flu',name:'流感疫苗(每年)',group:'流感',nip:false,yearly:true,doses:[{age:{m:6},label:'每年流行季前(首次接种8岁以下需2剂间隔≥4周)'}],perProduct:true},
+ {id:'flu',name:'流感疫苗(每年)',group:'流感',nip:false,dynamic:true,perProduct:true,doses:[{age:{m:6},label:'第1剂(≥6月龄)'},{age:{m:7},minInt:28,label:'第2剂(间隔≥4周)'}],
+  catchup:'流行季内均可接种，尽早完成。',
+  note:'6月龄–8岁首次接种灭活流感疫苗需2剂(同一剂型)，间隔≥4周；既往接种过的每季1剂；9岁及以上每季1剂。9–10月为最佳接种时间，流行季内未接种的随时可补。6–35月龄可用0.25mL或说明书适用≥6月龄的0.5mL剂型(全剂量免疫原性更好)。灭活流感疫苗可与其他灭活或减毒活疫苗在不同部位同时接种。（《中国流感疫苗预防接种技术指南(2025—2026)》）'},
  {id:'ev71',name:'EV71手足口疫苗',group:'EV71',nip:false,doses:[{age:{m:6},label:'第1剂'},{age:{m:7},minInt:28,label:'第2剂'}],maxAge:{y:6},perProduct:true,catchup:'6月龄-5岁(部分产品至71月龄)，2剂间隔1个月。'},
  {id:'penta',name:'五联疫苗(DTaP-IPV/Hib)',group:'五联',nip:false,covers:{dtap:[0,1,2,3],polio:[0,1,2,3],hib:[0,1,2,3]},doses:[{age:{m:2},label:'第1剂'},{age:{m:3},minInt:28,label:'第2剂'},{age:{m:4},minInt:28,label:'第3剂'},{age:{m:18},minInt:182,label:'加强'}],perProduct:true,note:'接种五联后，对应剂次的百白破、脊灰、Hib可不再接种（第4剂脊灰4岁bOPV请遵医嘱）。'},
  // 曼海欣 Menhycia：ACYW135群脑膜炎球菌多糖结合疫苗(CRM197)。程序依首剂年龄动态计算（见 mcv4Series）；doses 仅用于导入校验/时间轴占位。
@@ -61,6 +63,19 @@ function mcv4Series(child,todayStr){
  const last=parse(recs[n-1].date);let due=addDays(last,spec.minInt),label=spec.labels[n]||('第'+(n+1)+'剂');
  const diff=(due-parse(today))/DAY;let status='future';if(diff<0){status='overdue';due=parse(today)>due?parse(today):due;}else if(diff<=30)status='soon';
  return{given:n,total:spec.required,status,due:fmt(due),nextLabel:label,band,required:spec.required,catchupNote:''};
+}
+function fluSeasonStart(d){const y=d.getUTCFullYear(),m=d.getUTCMonth();return new Date(Date.UTC(m>=8?y:y-1,8,1));}
+// 流感：流行季按 9月1日–次年8月31日 计。6月龄–8岁既往未接种过者本季需2剂(间隔≥4周)，否则每季1剂。
+function fluSeries(child,todayStr){
+ const T=parse(todayStr),b=parse(child.birth),six=addAge(b,{m:6}),nine=addAge(b,{y:9});
+ const recs=(child.records||[]).filter(r=>r.vid==='flu').map(r=>r.date).sort();
+ const ss=fluSeasonStart(T),ssS=fmt(ss),prior=recs.filter(d=>d<ssS).length,cur=recs.filter(d=>d>=ssS);
+ const req=(prior===0&&T<nine)?2:1;
+ const st=due=>{const diff=(due-T)/DAY;return diff<=0?{status:'soon',due:fmt(T)}:{status:diff<=30?'soon':'future',due:fmt(due)};};
+ if(T<six){const r=st(six);return{given:0,total:2,...r,nextLabel:'第1剂(满6月龄，首次接种共2剂)'};}
+ if(cur.length>=req){const nx=new Date(Date.UTC(ss.getUTCFullYear()+1,8,1));return{given:cur.length,total:req,status:'future',due:fmt(nx),nextLabel:'下一流行季1剂(建议9–10月)',seasonDone:true};}
+ if(cur.length===0){const r=st(ss>six?ss:six);return{given:0,total:req,...r,nextLabel:req===2?'本季第1剂(首次接种共2剂)':'本季1剂'};}
+ const r=st(addDays(parse(cur[cur.length-1]),28));return{given:cur.length,total:req,...r,nextLabel:'本季第2剂(与第1剂间隔≥4周)'};
 }
 function applyMcv4NationalCoverage(child,coverDates){
  const recs=(child.records||[]).filter(r=>r.vid==='mcv4').sort((a,b)=>a.date<b.date?-1:1);if(!recs.length)return;
@@ -122,6 +137,9 @@ function seriesPlan(child,today){
    out.push({id:v.id,name:v.name,group:v.group,nip:v.nip,excl:v.excl||null,selected:sel,given:ms.given,total:ms.total,status,due,nextLabel,coveredBy:null,laterDue:null,laterLabel:'',catchupNote:sel?(ms.catchupNote||v.catchup||''):'',perProduct:true,optional:false});
    continue;
   }
+  if(v.id==='flu'){const fs=fluSeries(child,fmt(today));
+   out.push({id:v.id,name:v.name,group:v.group,nip:false,excl:null,selected:sel,given:fs.given,total:fs.total,status:sel?fs.status:'unselected',due:sel?fs.due:null,nextLabel:sel?fs.nextLabel:'',coveredBy:null,laterDue:null,laterLabel:'',catchupNote:sel?v.catchup:'',perProduct:true,optional:true,fluNote:sel?v.note:""});
+   continue;}
   let allDates=combined(v.id);
   // coverer 自身：进度按覆盖目标计算（支持中途切换）
   if(v.covers&&coverInfo[v.id]){const ds=Object.keys(v.covers).flatMap(t=>combined(t)).sort();const p=coverInfo[v.id].prog;allDates=ds.length?Array(p).fill(null).map((_,i)=>ds[ds.length-1]):[];if(p)allDates[p-1]=ds[ds.length-1];}
@@ -219,7 +237,7 @@ function vaccineById(vid){return V.find(x=>x.id===vid);}
 function parseDoseKey(key){
  const m=String(key||'').match(/^(.+)-(\d+)$/);if(!m)return null;
  const vid=importDoseSlug(m[1]),n=+m[2],v=vaccineById(vid);
- if(!v||!Number.isInteger(n)||n<1||n>v.doses.length)return{ok:false,key,reason:'unknown_dose'};
+ if(!v||!Number.isInteger(n)||n<1||(v.id!=='flu'&&n>v.doses.length))return{ok:false,key,reason:'unknown_dose'};
  return{ok:true,vid,doseIndex:n-1,key};
 }
 function convertSingleChildExport(raw){
@@ -289,6 +307,6 @@ function importIntoState(state,raw,onConflict){
 const API={isSelected,selfPaidCatalog,normalizeChildSelfPaid,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
  SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh,
  ADDON_IMPORT,ADDON_EXPORT,convertSingleChildExport,exportSingleChild,detectImportFormat,mergeChildRecords,importIntoState,isValidRecordDate,parseDoseKey,
- ageInMonths,mcv4BandFromMonths,mcv4BandFirst,mcv4Spec,mcv4Series,applyMcv4NationalCoverage};
+ ageInMonths,mcv4BandFromMonths,mcv4BandFirst,mcv4Spec,mcv4Series,applyMcv4NationalCoverage,fluSeries};
 if(typeof module!=='undefined')module.exports=API;else root.VT=API;
 })(this);
