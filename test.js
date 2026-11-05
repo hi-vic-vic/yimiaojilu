@@ -121,3 +121,9 @@ const mig={birth:'2026-01-01',records:[{vid:'rv3',date:'2026-03-01'}],selfPaid:{
 VT.normalizeChildSelfPaid(mig);assert.equal(mig.selfPaid.rv5,false);assert.equal(mig.selfPaid.rv3,true);
 assert.deepEqual(VT.normalizeAppState({children:[{id:'1',birth:'2026-01-01',records:[{vid:'penta',date:'2026-04-01'}],selfPaid:{}}],cur:'1'}).children[0].selfPaid.penta,true);
 console.log('All tests passed');
+// 婴儿期曼海欣：替代A群2剂，不替代3岁/6岁AC，但给出说明
+(()=>{const c={birth:'2026-05-11',records:[{vid:'mcv4',date:'2026-09-15'}]};const p=VT.seriesPlan(c,'2026-11-05');
+ assert.equal(g(p,'mpsva').status,'covered');assert.equal(g(p,'mpsvac').due,'2029-05-11');assert.ok(/不替代3岁/.test(g(p,'mpsvac').mcv4Note));
+ assert.ok(!VT.upcoming(c,'2026-11-05').some(s=>s.id==='mpsva'));
+ const c2={birth:'2022-06-01',records:[{vid:'mcv4',date:'2025-06-15'}]};assert.equal(g(VT.seriesPlan(c2,'2026-01-15'),'mpsvac').mcv4Note,'');})();
+console.log('mcv4 note ok');
