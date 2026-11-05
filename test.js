@@ -127,3 +127,14 @@ console.log('All tests passed');
  assert.ok(!VT.upcoming(c,'2026-11-05').some(s=>s.id==='mpsva'));
  const c2={birth:'2022-06-01',records:[{vid:'mcv4',date:'2025-06-15'}]};assert.equal(g(VT.seriesPlan(c2,'2026-01-15'),'mpsvac').mcv4Note,'');})();
 console.log('mcv4 note ok');
+// 流感：首季2剂间隔≥4周，之后每季1剂
+(()=>{const b='2026-05-11',f=(recs,t)=>g(VT.seriesPlan({birth:b,records:recs,selfPaid:{flu:true}},t),'flu');
+ let s=f([],'2026-11-05');assert.equal(s.due,'2026-11-11');assert.equal(s.total,2);assert.equal(s.status,'soon');
+ assert.equal(g(VT.seriesPlan({birth:b,records:[]},'2026-11-05'),'flu').status,'unselected');
+ s=g(VT.seriesPlan({birth:b,records:[{vid:'flu',date:'2026-11-11'}]},'2026-11-12'),'flu');assert.equal(s.given,1);assert.equal(s.due,'2026-12-09');
+ s=f([{vid:'flu',date:'2026-11-11'},{vid:'flu',date:'2026-12-09'}],'2026-12-10');assert.equal(s.due,'2027-09-01');assert.equal(s.given,2);
+ s=f([{vid:'flu',date:'2026-11-11'},{vid:'flu',date:'2026-12-09'}],'2027-09-15');assert.equal(s.total,1);assert.equal(s.given,0);assert.equal(s.due,'2027-09-15');
+ s=f([{vid:'flu',date:'2026-11-11'},{vid:'flu',date:'2026-12-09'},{vid:'flu',date:'2027-09-20'}],'2027-10-01');assert.equal(s.due,'2028-09-01');
+ assert.ok(VT.parseDoseKey('flu-3').ok);
+ assert.ok(VT.upcoming({birth:b,records:[],selfPaid:{flu:true}},'2026-11-05').some(x=>x.id==='flu'));})();
+console.log('flu ok');

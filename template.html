@@ -313,7 +313,7 @@ function renderInner(){
  const kind=s=>s.nip?'':'<span class="chip k-self">自费</span>';
  const row=s=>`<div class="v"><div><span class="n">${esc(s.name)}</span>${kind(s)}${chip(s)}</div>
   <div class="meta">已接种 ${s.given}/${s.total}${s.status==='covered'?`，计划由${esc(short(s.coveredBy))}代替接种，无需单独提醒${s.laterDue?`；之后的${esc(s.laterLabel)}仍需接种（约 ${s.laterDue}）`:''}`:''}${s.due?`，下一剂${esc(s.nextLabel)}：<b>${s.due}</b>（${rel(s.due)}）`:''}${s.perProduct?'。以产品说明书为准':''}</div>
-  ${s.mcv4Note?`<div class="tip">${esc(s.mcv4Note)}</div>`:''}
+  ${(s.mcv4Note||s.fluNote)?`<div class="tip">${esc(s.mcv4Note||s.fluNote)}</div>`:""}
   ${!['done','expired','alt','covered','unselected'].includes(s.status)?`<div class="act"><button class="btn sm" onclick="addRec('${s.id}')">记录接种</button></div>`:''}
   ${s.status==='overdue'&&s.catchupNote?`<div class="tip">补种原则：${esc(s.catchupNote)}</div>`:''}</div>`;
  const spCatalog=VT.selfPaidCatalog(c);
