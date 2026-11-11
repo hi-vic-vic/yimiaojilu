@@ -109,7 +109,7 @@ button,select,input{font:inherit;color:inherit}
 .v{display:grid;grid-template-columns:1fr auto;gap:6px 14px;padding:16px 0}
 .v+.v{border-top:1px solid var(--line)}
 .v .n{font-weight:600;font-size:15px;line-height:1.35}.v .meta{grid-column:1;color:var(--muted);font-size:13.5px;line-height:1.55;max-width:72ch}
-.v .act{grid-row:1/3;grid-column:2;align-self:center}
+.v .act{grid-row:1/3;grid-column:2;align-self:center;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 .v .tip{grid-column:1/-1;font-size:13px;color:var(--late);background:var(--late-soft);border-radius:var(--r-ctl);padding:8px 10px;margin-top:6px;max-width:72ch}
 .chip{display:inline-block;font-size:12px;line-height:20px;padding:2px 10px;border-radius:var(--r-chip);margin-left:6px;vertical-align:1px;font-weight:600;letter-spacing:.01em}
 .s-overdue{color:var(--late);background:var(--late-soft)}.s-soon{color:var(--soon);background:var(--soon-soft)}.s-done{color:var(--ok);background:var(--ok-soft)}
@@ -161,7 +161,7 @@ button,select,input{font:inherit;color:inherit}
 .tl .age{position:relative;margin:22px 0 6px;font-weight:600}.tl .age:first-child{margin-top:0}
 .tl .age:before{content:"";position:absolute;left:-21px;top:7px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--accent)}
 .tl .age .faint{font-weight:400;margin-left:8px}
-.tl .row{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:14.5px}.tl .row .mk{width:16px;flex:none;color:var(--faint)}.tl .row.ok .mk{color:var(--ok)}
+.tl .row{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:14.5px}.tl .row .mk{width:16px;flex:none;color:var(--faint)}.tl .row.ok .mk{color:var(--ok)}.tl .row .btn{margin-left:auto;flex:none}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
 /* 空状态 */
 .hello{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:32px;align-items:center;padding:36px}
@@ -273,17 +273,57 @@ function mcv4Series(child,todayStr){
  return{given:n,total:spec.required,status,due:fmt(due),nextLabel:label,band,required:spec.required,catchupNote:''};
 }
 function fluSeasonStart(d){const y=d.getUTCFullYear(),m=d.getUTCMonth();return new Date(Date.UTC(m>=8?y:y-1,8,1));}
+function fluSeasonEnd(ss){return new Date(Date.UTC(ss.getUTCFullYear()+1,8,1));}
 // 流感：流行季按 9月1日–次年8月31日 计。6月龄–8岁既往未接种过者本季需2剂(间隔≥4周)，否则每季1剂。
+// dueKind: eligible/season 是建议时间；earliest 只是第2剂最早可接种日，不是预约。
 function fluSeries(child,todayStr){
  const T=parse(todayStr),b=parse(child.birth),six=addAge(b,{m:6}),nine=addAge(b,{y:9});
  const recs=(child.records||[]).filter(r=>r.vid==='flu').map(r=>r.date).sort();
  const ss=fluSeasonStart(T),ssS=fmt(ss),prior=recs.filter(d=>d<ssS).length,cur=recs.filter(d=>d>=ssS);
  const req=(prior===0&&T<nine)?2:1;
  const st=due=>{const diff=(due-T)/DAY;return diff<=0?{status:'soon',due:fmt(T)}:{status:diff<=30?'soon':'future',due:fmt(due)};};
- if(T<six){const r=st(six);return{given:0,total:2,...r,nextLabel:'第1剂(满6月龄，首次接种共2剂)'};}
- if(cur.length>=req){const nx=new Date(Date.UTC(ss.getUTCFullYear()+1,8,1));return{given:cur.length,total:req,status:'future',due:fmt(nx),nextLabel:'下一流行季1剂(建议9–10月)',seasonDone:true};}
- if(cur.length===0){const r=st(ss>six?ss:six);return{given:0,total:req,...r,nextLabel:req===2?'本季第1剂(首次接种共2剂)':'本季1剂'};}
- const r=st(addDays(parse(cur[cur.length-1]),28));return{given:cur.length,total:req,...r,nextLabel:'本季第2剂(与第1剂间隔≥4周)'};
+ if(T<six){const r=st(six);return{given:0,total:2,...r,nextLabel:'第1剂(满6月龄，首次接种共2剂)',dueKind:'eligible',seasonDone:false};}
+ if(cur.length>=req){const nx=fluSeasonEnd(ss);return{given:cur.length,total:req,status:'future',due:fmt(nx),nextLabel:'下一流行季1剂(建议9–10月)',seasonDone:true,dueKind:'season'};}
+ if(cur.length===0){const r=st(ss>six?ss:six);return{given:0,total:req,...r,nextLabel:req===2?'本季第1剂(首次接种共2剂)':'本季1剂',dueKind:'season',seasonDone:false};}
+ const r=st(addDays(parse(cur[cur.length-1]),28));return{given:cur.length,total:req,...r,nextLabel:'本季第2剂(与第1剂间隔≥4周)',dueKind:'earliest',seasonDone:false};
+}
+function fluHistoryLabels(child){
+ const out={},recs=(child.records||[]).map((r,i)=>({...r,i})).filter(r=>r.vid==='flu'&&isValidRecordDate(r.date));
+ const seasons={};recs.forEach(r=>{const ss=fmt(fluSeasonStart(parse(r.date)));(seasons[ss]=seasons[ss]||[]).push(r);});
+ Object.keys(seasons).forEach(ss=>{const list=seasons[ss].sort((a,b)=>a.date<b.date?-1:1);
+  const prior=recs.filter(r=>r.date<ss).length,nine=addAge(parse(child.birth),{y:9});
+  const req=(prior===0&&parse(list[0].date)<nine)?2:1;
+  list.forEach((r,n)=>{out[r.i]=req===2?'本季第'+(n+1)+'剂':'本季1剂';});});
+ return out;
+}
+// 按实际接种日期校验剂次。最早日期只用于拦截过短间隔，不会写入记录，也不会变成预约。
+function validateFluRecord(child,date,editIndex){
+ if(!isValidRecordDate(date))return{ok:false,reason:'请填写有效的接种日期'};
+ const six=fmt(addAge(parse(child.birth),{m:6}));
+ if(date<six)return{ok:false,reason:'流感疫苗需满6月龄，最早 '+six,minDate:six};
+ const others=(child.records||[]).map((r,i)=>({...r,i})).filter(r=>r.vid==='flu'&&isValidRecordDate(r.date)&&(editIndex==null||r.i!==editIndex));
+ if(others.some(r=>r.date===date))return{ok:false,reason:'这一天已经有流感接种记录',minDate:six};
+ const seasonStart=fluSeasonStart(parse(date)),ss=fmt(seasonStart),nextSs=fmt(fluSeasonEnd(seasonStart));
+ const cur=others.filter(r=>r.date>=ss&&r.date<nextSs).map(r=>r.date).concat([date]).sort();
+ const prior=others.filter(r=>r.date<ss).length,nine=addAge(parse(child.birth),{y:9});
+ const req=(prior===0&&parse(date)<nine)?2:1;
+ const dose=cur.indexOf(date)+1;
+ const label=req===2?'本季第'+dose+'剂':'本季1剂';
+ if(cur.length>req)return{ok:false,reason:'本流行季应接种的 '+req+' 剂已记录，下一季再记',minDate:six,dose,label};
+ let minDate=six;
+ if(dose>1){minDate=fmt(addDays(parse(cur[dose-2]),28));if(date<minDate)return{ok:false,reason:'第2剂最早 '+minDate+'（与上一剂间隔至少4周）。这是最早日期，不是预约',minDate,dose,label:'本季第'+dose+'剂'};}
+ return{ok:true,dose,label,req,minDate,earliest:dose>1?minDate:null};
+}
+function describeFluDose(child,date,editIndex,todayStr){
+ const base={...child,records:(child.records||[]).filter((_,i)=>editIndex==null||i!==editIndex)};
+ const today=isValidRecordDate(todayStr)?todayStr:(isValidRecordDate(date)?date:null);
+ const fs=today?fluSeries(base,today):null,earliest=fs&&fs.dueKind==='earliest'?fs.due:'';
+ const v=date?validateFluRecord(child,date,editIndex):{ok:false,reason:'请填写实际接种日期',label:fs?fs.nextLabel:'未选择日期',minDate:earliest||fmt(addAge(parse(child.birth),{m:6})),dose:earliest?2:null};
+ if(!v.ok){let hint=(v.reason||'无法记录');if(earliest)hint+='。第2剂最早 '+earliest+'（间隔至少4周），最早日期不是预约';hint+='。本站不会自动预约或推送。';return{ok:false,label:v.label||(earliest?'本季第2剂':(fs&&fs.nextLabel)||'无法记录'),hint,minDate:earliest||v.minDate||'',dose:v.dose||(earliest?2:null)};}
+ let hint='将记为'+v.label+'。保存的是实际接种日期';
+ if(v.dose>1)hint+='。第2剂最早 '+v.earliest+'（间隔至少4周），最早日期不是预约';
+ hint+='。本站不会自动预约或推送提醒。';
+ return{ok:true,label:v.label,hint,dose:v.dose,minDate:v.minDate,earliest:v.earliest};
 }
 function applyMcv4NationalCoverage(child,coverDates){
  const recs=(child.records||[]).filter(r=>r.vid==='mcv4').sort((a,b)=>a.date<b.date?-1:1);if(!recs.length)return;
@@ -346,7 +386,7 @@ function seriesPlan(child,today){
    continue;
   }
   if(v.id==='flu'){const fs=fluSeries(child,fmt(today));
-   out.push({id:v.id,name:v.name,group:v.group,nip:false,excl:null,selected:sel,given:fs.given,total:fs.total,status:sel?fs.status:'unselected',due:sel?fs.due:null,nextLabel:sel?fs.nextLabel:'',coveredBy:null,laterDue:null,laterLabel:'',catchupNote:sel?v.catchup:'',perProduct:true,optional:true,fluNote:sel?v.note:""});
+   out.push({id:v.id,name:v.name,group:v.group,nip:false,excl:null,selected:sel,given:fs.given,total:fs.total,status:sel?fs.status:'unselected',due:sel?fs.due:null,nextLabel:sel?fs.nextLabel:'',dueKind:sel?fs.dueKind:null,seasonDone:!!fs.seasonDone,coveredBy:null,laterDue:null,laterLabel:'',catchupNote:sel?v.catchup:'',perProduct:true,optional:true,fluNote:sel?v.note:""});
    continue;}
   let allDates=combined(v.id);
   // coverer 自身：进度按覆盖目标计算（支持中途切换）
@@ -390,8 +430,16 @@ function upcoming(child,today){const T=today?parse(today):parse(new Date().toISO
  seriesPlan(child,today).forEach(s=>{if(s.due&&['overdue','soon','future'].includes(s.status))L.push(s);
   else if(s.status==='covered'&&s.laterDue)L.push({...s,status:statusOf(s.laterDue,T),due:s.laterDue<fmt(T)?fmt(T):s.laterDue,nextLabel:s.laterLabel,later:true});});
  return L.sort((a,b)=>a.due<b.due?-1:1);}
-function timeline(child){const b=parse(child.birth),items=[];for(const v of V){if(v.catchupOnly||(v.sexOnly&&child.sex&&child.sex!==v.sexOnly&&v.nip))continue;v.doses.forEach((d,i)=>items.push({vid:v.id,dose:i,name:v.name,label:d.label,nip:v.nip,date:fmt(addAge(b,d.age)),age:d.age}));}return items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(b.nip-a.nip));}
-function ics(child,today){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//vaccine-tracker//CN','CALSCALE:GREGORIAN'];upcoming(child,today).forEach((s,i)=>{const d=s.due.replace(/-/g,'');L.push('BEGIN:VEVENT','UID:'+child.id+'-'+s.id+'-'+d+'@vt','DTSTAMP:'+d+'T000000Z','DTSTART;VALUE=DATE:'+d,'SUMMARY:'+child.name+' 接种 '+s.name+' '+s.nextLabel,'DESCRIPTION:仅供参考，请以接种门诊安排为准','BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:疫苗接种提醒','END:VALARM','END:VEVENT');});L.push('END:VCALENDAR');return L.join('\r\n');}
+function fluTimelineItems(child,todayStr){
+ const labels=fluHistoryLabels(child);
+ const recs=(child.records||[]).map((r,i)=>({...r,i})).filter(r=>r.vid==='flu'&&isValidRecordDate(r.date)).sort((a,b)=>a.date<b.date?-1:1);
+ const items=recs.map(r=>({vid:'flu',name:'流感疫苗(每年)',label:labels[r.i]||'流感',nip:false,date:r.date,ageLabel:'已接种',done:true,dueKind:'recorded',appointment:false}));
+ const fs=fluSeries(child,todayStr);
+ items.push({vid:'flu',name:'流感疫苗(每年)',label:fs.nextLabel,nip:false,date:fs.due,ageLabel:fs.dueKind==='earliest'?'最早可接种':fs.seasonDone?'下一流行季':'建议接种',done:false,dueKind:fs.dueKind,seasonDone:!!fs.seasonDone,appointment:false});
+ return items;
+}
+function timeline(child,todayStr){const today=todayStr||fmt(new Date()),b=parse(child.birth),items=[];for(const v of V){if(v.catchupOnly||(v.sexOnly&&child.sex&&child.sex!==v.sexOnly&&v.nip))continue;if(v.id==='flu'){fluTimelineItems(child,today).forEach(it=>items.push(it));continue;}v.doses.forEach((d,i)=>items.push({vid:v.id,dose:i,name:v.name,label:d.label,nip:v.nip,date:fmt(addAge(b,d.age)),age:d.age}));}return items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(b.nip-a.nip));}
+function ics(child,today){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//vaccine-tracker//CN','CALSCALE:GREGORIAN'];upcoming(child,today).forEach(s=>{if(s.dueKind==='earliest')return;const d=s.due.replace(/-/g,'');const desc=s.id==='flu'?'建议接种时间，不是门诊预约。本站不会自动推送或代为预约。请以接种门诊安排为准':'仅供参考，请以接种门诊安排为准';L.push('BEGIN:VEVENT','UID:'+child.id+'-'+s.id+'-'+d+'@vt','DTSTAMP:'+d+'T000000Z','DTSTART;VALUE=DATE:'+d,'SUMMARY:'+child.name+' 接种 '+s.name+' '+s.nextLabel,'DESCRIPTION:'+desc);if(s.id!=='flu')L.push('BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:疫苗接种提醒','END:VALARM');L.push('END:VEVENT');});L.push('END:VCALENDAR');return L.join('\r\n');}
 function ageText(birth,today){const b=parse(birth),t=today?parse(today):new Date();let m=(t.getUTCFullYear()-b.getUTCFullYear())*12+t.getUTCMonth()-b.getUTCMonth();if(t.getUTCDate()<b.getUTCDate())m--;if(m<1)return Math.floor((t-b)/DAY)+'天';return m<24?m+'月龄':Math.floor(m/12)+'岁'+(m%12?m%12+'个月':'');}
 // ===== 云同步（Supabase REST，无 supabase-js）=====
 const SUPABASE_URL='https://hdvcfesguugxfapurfif.supabase.co';
@@ -432,8 +480,8 @@ function sessionFromAuthResponse(body){
 }
 function needsTokenRefresh(sess,skewMs=120e3){return!sess||!sess.expires_at||Date.now()>=sess.expires_at-skewMs;}
 // ===== 导入 / 导出（完整备份 + 单孩子 profile/records 格式）=====
-const ADDON_IMPORT={pentavalent:'penta',rotavirus3:'rv3',rotavirus5:'rv5',mcv4:'mcv4',menhycia:'mcv4'};
-const ADDON_EXPORT={penta:'pentavalent',rv3:'rotavirus3',rv5:'rotavirus5',mcv4:'mcv4'};
+const ADDON_IMPORT={pentavalent:'penta',rotavirus3:'rv3',rotavirus5:'rv5',mcv4:'mcv4',menhycia:'mcv4',flu:'flu'};
+const ADDON_EXPORT={penta:'pentavalent',rv3:'rotavirus3',rv5:'rotavirus5',mcv4:'mcv4',flu:'flu'};
 const DOSE_SLUG_IMPORT={rota3:'rv3',rota5:'rv5',pentavalent:'penta',menhycia:'mcv4'};
 const DOSE_SLUG_EXPORT={rv3:'rota3',rv5:'rota5'};
 function exportDoseSlug(vid){return DOSE_SLUG_EXPORT[vid]||vid;}
@@ -515,7 +563,7 @@ function importIntoState(state,raw,onConflict){
 const API={isSelected,selfPaidCatalog,normalizeChildSelfPaid,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
  SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh,
  ADDON_IMPORT,ADDON_EXPORT,convertSingleChildExport,exportSingleChild,detectImportFormat,mergeChildRecords,importIntoState,isValidRecordDate,parseDoseKey,
- ageInMonths,mcv4BandFromMonths,mcv4BandFirst,mcv4Spec,mcv4Series,applyMcv4NationalCoverage,fluSeries};
+ ageInMonths,mcv4BandFromMonths,mcv4BandFirst,mcv4Spec,mcv4Series,applyMcv4NationalCoverage,fluSeries,fluHistoryLabels,validateFluRecord,describeFluDose};
 if(typeof module!=='undefined')module.exports=API;else root.VT=API;
 })(this);
 
@@ -623,51 +671,74 @@ function renderInner(){
  const plan=VT.seriesPlan(c,today());
  const chip=s=>s.later?`<span class="chip s-${s.status}">${ST[s.status]}</span><span class="chip s-covered">前4剂由五联覆盖</span>`:s.status==='covered'?`<span class="chip s-covered">由${esc(short(s.coveredBy))}覆盖</span>`:`<span class="chip s-${s.status}">${ST[s.status]}</span>`;
  const kind=s=>s.nip?'':'<span class="chip k-self">自费</span>';
- const row=s=>`<div class="v"><div><span class="n">${esc(s.name)}</span>${kind(s)}${chip(s)}</div>
-  <div class="meta">已接种 ${s.given}/${s.total}${s.status==='covered'?`，计划由${esc(short(s.coveredBy))}代替接种，无需单独提醒${s.laterDue?`；之后的${esc(s.laterLabel)}仍需接种（约 ${s.laterDue}）`:''}`:''}${s.due?`，下一剂${esc(s.nextLabel)}：<b>${s.due}</b>（${rel(s.due)}）`:''}${s.perProduct?'。以产品说明书为准':''}</div>
+ function rowMeta(s){
+  if(s.id==='flu'){
+   const fs=VT.fluSeries(c,today()),book='不是预约，本站不会自动推送或代为预约';
+   let t=`已接种 ${fs.given}/${fs.total}`;
+   if(!s.selected)t+='。未加入计划也可直接记录';
+   if(fs.dueKind==='earliest')t+=`，第2剂最早 <b>${fs.due}</b>（间隔至少4周，${book}）`;
+   else if(fs.seasonDone)t+=`，下一季建议从 <b>${fs.due}</b> 起（${book}）`;
+   else if(fs.dueKind==='eligible')t+=`，满6月龄最早 <b>${fs.due}</b>（${book}）`;
+   else t+=`，${esc(fs.nextLabel)}：建议 <b>${fs.due}</b> 起（${rel(fs.due)}，${book}）`;
+   return t+'。以产品说明书为准';
+  }
+  return `已接种 ${s.given}/${s.total}${s.status==='covered'?`，计划由${esc(short(s.coveredBy))}代替接种，无需单独提醒${s.laterDue?`；之后的${esc(s.laterLabel)}仍需接种（约 ${s.laterDue}）`:''}`:''}${s.due?`，下一剂${esc(s.nextLabel)}：<b>${s.due}</b>（${rel(s.due)}）`:''}${s.perProduct?'。以产品说明书为准':''}`;
+ }
+ function rowActs(s){
+  const rec=s.id==='flu'||!['done','expired','alt','covered','unselected'].includes(s.status);
+  if(!rec)return '';
+  return `<div class="act"><button class="btn sm" onclick="addRec('${s.id}')">记录接种</button>${s.id==='flu'&&!s.selected?`<button class="btn sm" onclick="toggleSP('flu',true)">加入提醒</button>`:''}</div>`;
+ }
+ const row=s=>`<div class="v"${s.id==='flu'?' id="fluRow"':''}><div><span class="n">${esc(s.name)}</span>${kind(s)}${chip(s)}</div>
+  <div class="meta">${rowMeta(s)}</div>
   ${(s.mcv4Note||s.fluNote)?`<div class="tip">${esc(s.mcv4Note||s.fluNote)}</div>`:""}
-  ${!['done','expired','alt','covered','unselected'].includes(s.status)?`<div class="act"><button class="btn sm" onclick="addRec('${s.id}')">记录接种</button></div>`:''}
+  ${rowActs(s)}
   ${s.status==='overdue'&&s.catchupNote?`<div class="tip">补种原则：${esc(s.catchupNote)}</div>`:''}</div>`;
  const spCatalog=VT.selfPaidCatalog(c);
  const spSum=spPlanSummary(c,spCatalog);
  const spPanel=`<section class="panel sp-plan${spPlanOpen?' sp-open':''}" id="spPlan"><button type="button" class="sp-plan-h" onclick="toggleSpPlan()" aria-expanded="${spPlanOpen?'true':'false'}" aria-controls="spPlanBody"><h3>自费疫苗计划</h3><span class="sp-plan-sum">${esc(spSum)}</span><span class="sp-chev" aria-hidden="true">›</span></button>
   <div id="spPlanBody" class="sp-plan-body"><div class="opts">${spCatalog.map(v=>{const on=VT.isSelected(c,v),rec=(c.records||[]).some(r=>r.vid===v.id);return `<label class="opt ${on?'on':''}"><input type="checkbox" data-sp="${v.id}" ${on?'checked':''} onchange="toggleSP('${v.id}',this.checked)"><span>${esc(v.name)}${rec?'<small>已有接种记录</small>':v.excl?'<small>轮状疫苗二选一</small>':''}</span></label>`}).join('')}</div>
-  <p class="faint" style="margin-top:10px">勾选后纳入提醒（唯一入口）。选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。曼海欣(MCV4)程序依首剂年龄而定，可按《2026年版免疫程序》替代相应免费流脑剂次（详见疫苗说明）。取消勾选后不再提醒，但已有接种记录仍会显示。</p></div></section>`;
+  <p class="faint" style="margin-top:10px">勾选后纳入下一针提醒。流感未勾选时，仍可在上方流感卡片或「全部疫苗」中直接记录接种。选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。曼海欣(MCV4)程序依首剂年龄而定，可按《2026年版免疫程序》替代相应免费流脑剂次（详见疫苗说明）。取消勾选后不再提醒，但已有接种记录仍会显示。</p></div></section>`;
  const actBlock=`<div class="act-block"><div class="act-row primary"><button class="btn sm p" onclick="editChild(cur())">编辑资料</button><button class="btn sm" onclick="exportICS()">导出日历</button></div>
   <details class="act-data"><summary>备份与档案</summary><div class="act-row secondary"><button class="btn sm" onclick="exportChildJSON()">导出档案</button><button class="btn sm" onclick="exportJSON()">导出备份</button><button class="btn sm" onclick="$('imp').click()">导入备份</button></div></details>
   <button class="btn sm link danger act-del" type="button" onclick="delChild()">删除孩子</button></div>`;
  const statRow=s=>s.nip||s.selected;
  const cnt=k=>plan.filter(s=>statRow(s)&&s.status===k).length;
  let h='';
- if(tab==='dash'){const up=VT.upcoming(c,today()),n=up[0],T=today();
-  const hero=n?`<section class="panel next bento-tile bento-hero ${n.status==='overdue'?'late':''}" aria-label="下一针"><div class="when">${n.status==='overdue'?'尽快补种':md(n.due)}<small>${n.status==='overdue'?'已过推荐时间':rel(n.due)}</small></div><div class="what"><h2>下一针：${esc(n.name)}</h2><p>${esc(n.nextLabel)}${!n.nip?' <span class="chip k-self">自费</span>':''}${n.status==='overdue'?'。补种前请先咨询接种门诊':''}</p></div>
-   <div class="acts"><button class="btn p" onclick="addRec('${n.id}')">记录接种</button><button class="btn ghost" onclick="exportICS()">导出日历</button></div></section>`:`<section class="panel next bento-tile bento-hero"><div class="what"><h2>当前没有待接种提醒</h2><p class="muted">可在下方勾选自费疫苗，或在「全部疫苗」中查看进度。</p></div></section>`;
+ if(tab==='dash'){const up=VT.upcoming(c,today()),n=up.find(s=>s.dueKind!=='earliest'),earliest=up.find(s=>s.dueKind==='earliest'),T=today();
+  const fluPlan=plan.find(s=>s.id==='flu'),fluEntry=fluPlan&&!fluPlan.selected?`<div id="fluEntry">${row(fluPlan)}</div>`:'';
+  const hero=n?`<section class="panel next bento-tile bento-hero ${n.status==='overdue'?'late':''}" aria-label="下一针"><div class="when">${n.status==='overdue'?'尽快补种':md(n.due)}<small>${n.status==='overdue'?'已过推荐时间':rel(n.due)}</small></div><div class="what"><h2>下一针：${esc(n.name)}</h2><p>${esc(n.nextLabel)}${!n.nip?' <span class="chip k-self">自费</span>':''}${n.status==='overdue'?'。补种前请先咨询接种门诊':''}</p>${n.id==='flu'?'<p>这是建议接种时间，不是门诊预约。本站不会自动推送或代为预约。</p>':''}</div>
+   <div class="acts"><button class="btn p" onclick="addRec('${n.id}')">记录接种</button><button class="btn ghost" onclick="exportICS()">导出日历</button></div></section>`:earliest?`<section class="panel next bento-tile bento-hero" id="fluWait" aria-label="流感最早日期"><div class="when">最早<small>不是预约</small></div><div class="what"><h2>流感第2剂最早 ${md(earliest.due)}</h2><p>与上一剂间隔至少4周。请在实际接种后再记录。本站不会自动预约或推送。</p></div>
+   <div class="acts"><button class="btn p" onclick="addRec('flu')">记录接种</button></div></section>`:`<section class="panel next bento-tile bento-hero"><div class="what"><h2>当前没有待接种提醒</h2><p class="muted">可在下方勾选自费疫苗，或在「全部疫苗」中查看进度。</p></div></section>`;
   const stats=`<div class="bento-stats" aria-label="接种概况"><div class="panel stat-tile late stat-late"><b>${cnt('overdue')}</b><span>疫苗逾期</span></div><div class="panel stat-tile soon stat-soon"><b>${cnt('soon')}</b><span>30 天内到期</span></div><div class="panel stat-tile done stat-done"><b>${cnt('done')}</b><span>计划内已完成</span></div></div>`;
   const nipProg=doseProg(plan,true),spProg=doseProg(plan,false);
   const progPanel=`<section class="panel bento-tile bento-prog" aria-label="接种进度"><div class="sec-h"><h3>接种进度</h3><span class="faint">按剂次统计</span></div>${progBlock('免疫规划',nipProg,'','暂无')}${progBlock('自费（已选或已有记录）',spProg,'sp','未选择')}</section>`;
   const recent=(c.records||[]).slice().sort((a,b)=>a.date<b.date?1:-1).slice(0,4);
   const recentPanel=`<section class="panel bento-tile bento-recent" aria-label="近期已接种"><div class="sec-h"><h3>近期已接种</h3><span class="faint">最近 ${recent.length} 条</span></div>${recent.length?`<ul class="recent-list">${recent.map(r=>{const v=VT.VACCINES.find(x=>x.id===r.vid);return `<li><span class="nm">${esc(v?v.name:r.vid)}</span><span class="dt">${r.date}</span></li>`}).join('')}</ul>`:'<p class="muted">还没有接种记录。</p>'}</section>`;
   const ahead=up.filter(s=>{const d=days(s.due);return d>=0&&d<=92}).slice(0,5);
-  const aheadPanel=`<section class="panel bento-tile bento-ahead" aria-label="未来三个月"><div class="sec-h"><h3>未来 3 个月</h3><span class="faint">待接种提醒</span></div>${ahead.length?`<ul class="ahead-list">${ahead.map(s=>`<li><span class="dt">${md(s.due)}</span><span class="nm">${esc(short(s.name))}${s.nip?'':' <span class="chip k-self">自费</span>'}</span><span class="sub">${esc(s.nextLabel)} · ${rel(s.due)}</span></li>`).join('')}</ul>`:'<p class="muted">这三个月内没有待接种提醒。</p>'}</section>`;
+  const aheadPanel=`<section class="panel bento-tile bento-ahead" aria-label="未来三个月"><div class="sec-h"><h3>未来 3 个月</h3><span class="faint">待接种提醒</span></div>${ahead.length?`<ul class="ahead-list">${ahead.map(s=>`<li><span class="dt">${s.dueKind==='earliest'?'最早'+md(s.due):md(s.due)}</span><span class="nm">${esc(short(s.name))}${s.nip?'':' <span class="chip k-self">自费</span>'}</span><span class="sub">${s.dueKind==='earliest'?esc(s.nextLabel)+' · 间隔至少4周，不是预约':s.id==='flu'?esc(s.nextLabel)+' · '+rel(s.due)+'，不是预约':esc(s.nextLabel)+' · '+rel(s.due)}</span></li>`).join('')}</ul>`:'<p class="muted">这三个月内没有待接种提醒。</p>'}</section>`;
   const whoPanel=`<aside class="panel bento-tile bento-who who"><h2>${esc(c.name)}</h2><p class="muted">${c.sex==='F'?'女孩':'男孩'}，${VT.ageText(c.birth,T)}<span class="faint">（${c.birth} 出生）</span></p>
   <p class="faint" style="margin-top:8px">已录入 ${(c.records||[]).length} 条接种记录</p>${actBlock}</aside>`;
   const rail=`<div class="bento-rail">${whoPanel}${progPanel}${recentPanel}${aheadPanel}</div>`;
   const coveredNote=(()=>{const cv=plan.filter(x=>x.status==='covered');return cv.length?`<div class="covered-note"><b>由${esc(short(cv[0].coveredBy))}覆盖，不单独提醒</b>${cv.map(x=>`<span class="chip s-covered">${esc(x.name.replace(/\(.*$/,''))}${x.laterDue?' 前4剂':''}</span>`).join('')}</div>`:''})();
   const upList=up.length?up.map(row).join(''):'<p class="muted">没有待接种的疫苗。</p>';
   const upInner=`<div class="up-inner"><div class="up-list">${upList}</div>${coveredNote?`<div class="up-foot">${coveredNote}</div>`:''}</div>`;
-  h=`<div class="bento">${hero}${stats}${rail}<section class="panel bento-tile bento-up" id="upNip"><div class="sec-h"><h3>待接种</h3><span class="faint">免疫规划与已选自费，按日期排序</span></div>${upInner}</section>
+  h=`<div class="bento">${hero}${stats}${rail}<section class="panel bento-tile bento-up" id="upNip"><div class="sec-h"><h3>待接种</h3><span class="faint">免疫规划与已选自费，按日期排序</span></div>${fluEntry}${upInner}</section>
   ${spPanel.replace('class="panel sp-plan','class="panel bento-tile bento-sp sp-plan')}</div>`;}
  if(tab==='all'){h=`<div class="cols"><section class="panel"><div class="sec-h"><h3>免疫规划疫苗</h3><span class="faint">免费</span></div>${plan.filter(s=>s.nip).map(row).join('')}</section>
-  <section class="panel"><div class="sec-h"><h3>非免疫规划疫苗</h3><span class="faint">自费、自愿</span></div>${plan.filter(s=>!s.nip&&(s.selected||s.given>0)).map(row).join('')||'<p class="muted">尚未选择自费疫苗，可在概览页「自费疫苗计划」中勾选。</p>'}<p class="faint" style="margin-top:10px">记录五联疫苗(DTaP-IPV/Hib)后，对应剂次的百白破、脊灰、Hib 会自动计为已完成。2026 年版免疫规划为 13 周岁女孩免费接种 2 剂双价 HPV；自费四价、九价以说明书为准。</p></section></div>`;}
- if(tab==='tl'){const recs=c.records||[];let last='';h='<section class="panel"><div class="tl">';VT.timeline(c).forEach(t=>{const a=t.age,lab=a.y?a.y+'岁'+(a.m?a.m+'个月':''):a.m?a.m+'月龄':a.w?a.w+'周龄':'出生时';if(lab!==last){h+=`<div class="age">${lab}<span class="faint">${t.date}</span></div>`;last=lab}
+  <section class="panel"><div class="sec-h"><h3>非免疫规划疫苗</h3><span class="faint">自费、自愿</span></div>${plan.filter(s=>!s.nip&&(s.selected||s.given>0||s.id==='flu')).map(row).join('')||'<p class="muted">尚未选择自费疫苗，可在概览页「自费疫苗计划」中勾选。</p>'}<p class="faint" style="margin-top:10px">记录五联疫苗(DTaP-IPV/Hib)后，对应剂次的百白破、脊灰、Hib 会自动计为已完成。2026 年版免疫规划为 13 周岁女孩免费接种 2 剂双价 HPV；自费四价、九价以说明书为准。流感未勾选计划时也可直接记录接种。</p></section></div>`;}
+ if(tab==='tl'){const recs=c.records||[];let last='';h='<section class="panel"><div class="tl">';VT.timeline(c,today()).forEach(t=>{const a=t.age,lab=t.ageLabel||(a.y?a.y+'岁'+(a.m?a.m+'个月':''):a.m?a.m+'月龄':a.w?a.w+'周龄':'出生时');if(lab!==last){h+=`<div class="age">${lab}<span class="faint">${t.date}</span></div>`;last=lab}
+  if(t.vid==='flu'){const note=t.done?`已于 ${t.date} 接种`:t.dueKind==='earliest'?`最早 ${t.date}（间隔至少4周，不是预约）`:t.seasonDone?`下一季建议 ${t.date} 起（不是预约）`:`建议 ${t.date} 起（不是预约）`;h+=`<div class="row ${t.done?'ok':''}" data-flu="1"><span class="mk">${t.done?'✓':'○'}</span><span>${esc(t.name)}，${esc(t.label)}<span class="chip k-self">自费</span> <span class="faint">${esc(note)}。本站不会自动预约或推送。</span></span>${t.done?'':`<button class="btn sm" type="button" onclick="addRec('flu')">记录接种</button>`}</div>`;return}
   const r=recs.filter(x=>x.vid===t.vid).sort((x,y)=>x.date<y.date?-1:1)[t.dose];h+=`<div class="row ${r?'ok':''}"><span class="mk">${r?'✓':'○'}</span><span>${esc(t.name)}，${esc(t.label)}${t.nip?'':'<span class="chip k-self">自费</span>'}${r?` <span class="faint">已于 ${r.date} 接种</span>`:''}</span></div>`});h+='</div></section>';}
- if(tab==='rec'){const recs=(c.records||[]).map((r,i)=>({...r,i})).sort((a,b)=>a.date<b.date?1:-1);h=`<section class="panel"><div class="sec-h"><h3>接种记录</h3><span class="faint">${recs.length} 条</span><span style="flex:1"></span><button class="btn p sm" onclick="addRec()">添加记录</button></div>${recs.map(r=>{const v=VT.VACCINES.find(v=>v.id===r.vid);return `<div class="v"><div><span class="n">${esc(v?v.name:r.vid)}</span></div><div class="meta">${r.date}${r.batch?`，批号 ${esc(r.batch)}`:''}${r.note?`，${esc(r.note)}`:''}</div><div class="act"><button class="btn sm link" onclick="addRec(null,${r.i})">编辑</button><button class="btn sm link danger" onclick="delRec(${r.i})">删除</button></div></div>`}).join('')||'<p class="muted" style="padding:12px 0">还没有记录。打过的针可以在这里补录。</p>'}</section>`;}
+ if(tab==='rec'){const fluLabels=VT.fluHistoryLabels(c);const recs=(c.records||[]).map((r,i)=>({...r,i})).sort((a,b)=>a.date<b.date?1:-1);h=`<section class="panel"><div class="sec-h"><h3>接种记录</h3><span class="faint">${recs.length} 条</span><span style="flex:1"></span><button class="btn p sm" onclick="addRec()">添加记录</button></div>${recs.map(r=>{const v=VT.VACCINES.find(v=>v.id===r.vid);const dose=r.vid==='flu'&&fluLabels[r.i]?`，${esc(fluLabels[r.i])}`:'';return `<div class="v"><div><span class="n">${esc(v?v.name:r.vid)}</span></div><div class="meta">${r.date}${dose}${r.batch?`，批号 ${esc(r.batch)}`:''}${r.note?`，${esc(r.note)}`:''}</div><div class="act"><button class="btn sm link" onclick="addRec(null,${r.i})">编辑</button><button class="btn sm link danger" onclick="delRec(${r.i})">删除</button></div></div>`}).join('')||'<p class="muted" style="padding:12px 0">还没有记录。打过的针可以在这里补录。</p>'}</section>`;}
  $('main').innerHTML=h;}
-function dialog(html,onok,okText){const epoch=authEpoch;$('dform').innerHTML=html+'<div class="d-acts"><button class="btn" value="c" formnovalidate>取消</button><button class="btn p" value="ok">'+esc(okText||'保存')+'</button></div>';$('dlg').showModal();$('dlg').onclose=()=>{if($('dlg').returnValue==='ok'&&onok&&epoch===authEpoch)onok(new FormData($('dform')))}}
+function dialog(html,onok,okText){const epoch=authEpoch;$('dform').innerHTML=html+'<div class="d-acts"><button class="btn" value="c" formnovalidate>取消</button><button class="btn p" value="ok">'+esc(okText||'保存')+'</button></div>';$('dlg').showModal();$('dlg').onclose=()=>{if($('dlg').returnValue==='ok'&&onok&&epoch===authEpoch)onok(new FormData($('dform')))};return $('dform')}
 function editChild(c){if(!canEdit())return;dialog(`<h3>${c?'编辑资料':'添加孩子'}</h3><label class="f"><span>姓名或小名</span><input name="name" required value="${esc(c?.name)}"></label><label class="f"><span>出生日期</span><input type="date" name="birth" required value="${c?.birth||''}"></label><label class="f"><span>性别</span><select name="sex"><option value="M">男孩</option><option value="F" ${c?.sex==='F'?'selected':''}>女孩</option></select></label>`,async f=>{const o={name:f.get('name'),birth:f.get('birth'),sex:f.get('sex')};if(!o.name||!o.birth)return;const ok=await changeState(next=>{if(c)Object.assign(next.children.find(x=>x.id===c.id),o);else{o.id='c'+Date.now();o.records=[];o.selfPaid={};next.children.push(o);next.cur=o.id;tab='dash'}});if(ok)toast(c?'已保存到云端':'已添加 '+o.name)},c?'保存修改':'添加孩子')}
 async function toggleSP(id,on){const idc=cur()?.id;await changeState(next=>{const c=next.children.find(x=>x.id===idc);if(!c)return;c.selfPaid=c.selfPaid||{};c.selfPaid[id]=!!on;const v=VT.VACCINES.find(x=>x.id===id);if(on&&v.excl)VT.VACCINES.filter(o=>o.excl===v.excl&&o.id!==id).forEach(o=>c.selfPaid[o.id]=false)});render()}
 async function delChild(){const c=cur();if(c&&confirm('删除 '+c.name+' 及全部记录？'))await changeState(next=>{next.children=next.children.filter(x=>x.id!==c.id);next.cur=next.children[0]?.id||null})}
-function addRec(vid,i){if(!canEdit())return;const c=cur();if(!c)return;const r=i!=null?c.records[i]:{vid:vid||VT.VACCINES[0].id,date:today()};dialog(`<h3>${i!=null?'编辑记录':'记录接种'}</h3><label class="f"><span>疫苗</span><select name="vid">${VT.VACCINES.map(v=>`<option value="${v.id}" ${v.id===r.vid?'selected':''}>${esc(v.name)}${v.nip?'':'（自费）'}</option>`).join('')}</select></label><label class="f"><span>接种日期</span><input type="date" name="date" required value="${r.date}"></label><label class="f"><span>批号（可选）</span><input name="batch" value="${esc(r.batch)}"></label><label class="f"><span>门诊或备注（可选）</span><input name="note" value="${esc(r.note)}"></label>`,async f=>{const o={vid:f.get('vid'),date:f.get('date'),batch:f.get('batch'),note:f.get('note')};if(!o.date)return;const ok=await changeState(next=>{const child=next.children.find(x=>x.id===c.id);if(i!=null)child.records[i]=o;else child.records.push(o);const vv=VT.VACCINES.find(x=>x.id===o.vid);if(vv&&!vv.nip){child.selfPaid=child.selfPaid||{};child.selfPaid[o.vid]=true;if(vv.excl)VT.VACCINES.filter(x=>x.excl===vv.excl&&x.id!==o.vid).forEach(x=>{if(!child.records.some(r=>r.vid===x.id))child.selfPaid[x.id]=false})}});if(ok)toast(i!=null?'已保存到云端':'已记录接种并保存到云端')},i!=null?'保存修改':'记录接种')}
+let recEditIndex=null;
+function syncFluDoseFields(){const form=$('dform');if(!form||!form.vid)return;const box=$('fluDoseBox');if(!box)return;const show=form.vid.value==='flu';box.hidden=!show;if(!show)return;const info=VT.describeFluDose(cur(),form.date.value,recEditIndex,today());form.fluDose.innerHTML=`<option value="${info.dose==null?'':info.dose}">${esc(info.label)}</option>`;$('fluDoseHint').textContent=info.hint;if(info.minDate)form.date.min=info.minDate;}
+function addRec(vid,i){if(!canEdit())return;const c=cur();if(!c)return;recEditIndex=i!=null?i:null;const r=i!=null?c.records[i]:{vid:vid||VT.VACCINES[0].id,date:today()};const fluDate=r.vid==='flu'&&i==null&&!VT.validateFluRecord(c,r.date,null).ok?'':(r.date||'');const form=dialog(`<h3>${i!=null?'编辑记录':'记录接种'}</h3><label class="f"><span>疫苗</span><select name="vid" onchange="syncFluDoseFields()">${VT.VACCINES.map(v=>`<option value="${v.id}" ${v.id===r.vid?'selected':''}>${esc(v.name)}${v.nip?'':'（自费）'}</option>`).join('')}</select></label><div id="fluDoseBox"${r.vid==='flu'?'':' hidden'}><label class="f"><span>剂次</span><select name="fluDose" id="fluDose" aria-label="剂次"></select></label><p id="fluDoseHint" class="faint"></p></div><label class="f"><span>接种日期</span><input type="date" name="date" required value="${fluDate}" oninput="syncFluDoseFields()"></label><label class="f"><span>批号（可选）</span><input name="batch" value="${esc(r.batch)}"></label><label class="f"><span>门诊或备注（可选）</span><input name="note" value="${esc(r.note)}"></label>`,async f=>{const o={vid:f.get('vid'),date:f.get('date'),batch:f.get('batch'),note:f.get('note')};if(!o.date)return;if(o.vid==='flu'){const chk=VT.validateFluRecord(c,o.date,recEditIndex);if(!chk.ok){toast(chk.reason);return}}const ok=await changeState(next=>{const child=next.children.find(x=>x.id===c.id);if(i!=null)child.records[i]=o;else child.records.push(o);const vv=VT.VACCINES.find(x=>x.id===o.vid);if(vv&&!vv.nip){child.selfPaid=child.selfPaid||{};child.selfPaid[o.vid]=true;if(vv.excl)VT.VACCINES.filter(x=>x.excl===vv.excl&&x.id!==o.vid).forEach(x=>{if(!child.records.some(r=>r.vid===x.id))child.selfPaid[x.id]=false})}});if(ok)toast(i!=null?'已保存到云端':'已记录接种并保存到云端')},i!=null?'保存修改':'记录接种');if(!form)return;form.onsubmit=e=>{if(e.submitter&&e.submitter.value!=='ok')return;const data=new FormData(form);if(data.get('vid')!=='flu')return;const chk=VT.validateFluRecord(cur(),data.get('date'),recEditIndex);if(!chk.ok){e.preventDefault();toast(chk.reason)}};syncFluDoseFields()}
 async function delRec(i){const id=cur()?.id;if(confirm('删除这条记录？'))await changeState(next=>{next.children.find(x=>x.id===id).records.splice(i,1)})}
 function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
 function exportJSON(){dl('疫苗记录备份-'+today()+'.json',JSON.stringify(S,null,2),'application/json')}

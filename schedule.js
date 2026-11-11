@@ -65,17 +65,57 @@ function mcv4Series(child,todayStr){
  return{given:n,total:spec.required,status,due:fmt(due),nextLabel:label,band,required:spec.required,catchupNote:''};
 }
 function fluSeasonStart(d){const y=d.getUTCFullYear(),m=d.getUTCMonth();return new Date(Date.UTC(m>=8?y:y-1,8,1));}
+function fluSeasonEnd(ss){return new Date(Date.UTC(ss.getUTCFullYear()+1,8,1));}
 // 流感：流行季按 9月1日–次年8月31日 计。6月龄–8岁既往未接种过者本季需2剂(间隔≥4周)，否则每季1剂。
+// dueKind: eligible/season 是建议时间；earliest 只是第2剂最早可接种日，不是预约。
 function fluSeries(child,todayStr){
  const T=parse(todayStr),b=parse(child.birth),six=addAge(b,{m:6}),nine=addAge(b,{y:9});
  const recs=(child.records||[]).filter(r=>r.vid==='flu').map(r=>r.date).sort();
  const ss=fluSeasonStart(T),ssS=fmt(ss),prior=recs.filter(d=>d<ssS).length,cur=recs.filter(d=>d>=ssS);
  const req=(prior===0&&T<nine)?2:1;
  const st=due=>{const diff=(due-T)/DAY;return diff<=0?{status:'soon',due:fmt(T)}:{status:diff<=30?'soon':'future',due:fmt(due)};};
- if(T<six){const r=st(six);return{given:0,total:2,...r,nextLabel:'第1剂(满6月龄，首次接种共2剂)'};}
- if(cur.length>=req){const nx=new Date(Date.UTC(ss.getUTCFullYear()+1,8,1));return{given:cur.length,total:req,status:'future',due:fmt(nx),nextLabel:'下一流行季1剂(建议9–10月)',seasonDone:true};}
- if(cur.length===0){const r=st(ss>six?ss:six);return{given:0,total:req,...r,nextLabel:req===2?'本季第1剂(首次接种共2剂)':'本季1剂'};}
- const r=st(addDays(parse(cur[cur.length-1]),28));return{given:cur.length,total:req,...r,nextLabel:'本季第2剂(与第1剂间隔≥4周)'};
+ if(T<six){const r=st(six);return{given:0,total:2,...r,nextLabel:'第1剂(满6月龄，首次接种共2剂)',dueKind:'eligible',seasonDone:false};}
+ if(cur.length>=req){const nx=fluSeasonEnd(ss);return{given:cur.length,total:req,status:'future',due:fmt(nx),nextLabel:'下一流行季1剂(建议9–10月)',seasonDone:true,dueKind:'season'};}
+ if(cur.length===0){const r=st(ss>six?ss:six);return{given:0,total:req,...r,nextLabel:req===2?'本季第1剂(首次接种共2剂)':'本季1剂',dueKind:'season',seasonDone:false};}
+ const r=st(addDays(parse(cur[cur.length-1]),28));return{given:cur.length,total:req,...r,nextLabel:'本季第2剂(与第1剂间隔≥4周)',dueKind:'earliest',seasonDone:false};
+}
+function fluHistoryLabels(child){
+ const out={},recs=(child.records||[]).map((r,i)=>({...r,i})).filter(r=>r.vid==='flu'&&isValidRecordDate(r.date));
+ const seasons={};recs.forEach(r=>{const ss=fmt(fluSeasonStart(parse(r.date)));(seasons[ss]=seasons[ss]||[]).push(r);});
+ Object.keys(seasons).forEach(ss=>{const list=seasons[ss].sort((a,b)=>a.date<b.date?-1:1);
+  const prior=recs.filter(r=>r.date<ss).length,nine=addAge(parse(child.birth),{y:9});
+  const req=(prior===0&&parse(list[0].date)<nine)?2:1;
+  list.forEach((r,n)=>{out[r.i]=req===2?'本季第'+(n+1)+'剂':'本季1剂';});});
+ return out;
+}
+// 按实际接种日期校验剂次。最早日期只用于拦截过短间隔，不会写入记录，也不会变成预约。
+function validateFluRecord(child,date,editIndex){
+ if(!isValidRecordDate(date))return{ok:false,reason:'请填写有效的接种日期'};
+ const six=fmt(addAge(parse(child.birth),{m:6}));
+ if(date<six)return{ok:false,reason:'流感疫苗需满6月龄，最早 '+six,minDate:six};
+ const others=(child.records||[]).map((r,i)=>({...r,i})).filter(r=>r.vid==='flu'&&isValidRecordDate(r.date)&&(editIndex==null||r.i!==editIndex));
+ if(others.some(r=>r.date===date))return{ok:false,reason:'这一天已经有流感接种记录',minDate:six};
+ const seasonStart=fluSeasonStart(parse(date)),ss=fmt(seasonStart),nextSs=fmt(fluSeasonEnd(seasonStart));
+ const cur=others.filter(r=>r.date>=ss&&r.date<nextSs).map(r=>r.date).concat([date]).sort();
+ const prior=others.filter(r=>r.date<ss).length,nine=addAge(parse(child.birth),{y:9});
+ const req=(prior===0&&parse(date)<nine)?2:1;
+ const dose=cur.indexOf(date)+1;
+ const label=req===2?'本季第'+dose+'剂':'本季1剂';
+ if(cur.length>req)return{ok:false,reason:'本流行季应接种的 '+req+' 剂已记录，下一季再记',minDate:six,dose,label};
+ let minDate=six;
+ if(dose>1){minDate=fmt(addDays(parse(cur[dose-2]),28));if(date<minDate)return{ok:false,reason:'第2剂最早 '+minDate+'（与上一剂间隔至少4周）。这是最早日期，不是预约',minDate,dose,label:'本季第'+dose+'剂'};}
+ return{ok:true,dose,label,req,minDate,earliest:dose>1?minDate:null};
+}
+function describeFluDose(child,date,editIndex,todayStr){
+ const base={...child,records:(child.records||[]).filter((_,i)=>editIndex==null||i!==editIndex)};
+ const today=isValidRecordDate(todayStr)?todayStr:(isValidRecordDate(date)?date:null);
+ const fs=today?fluSeries(base,today):null,earliest=fs&&fs.dueKind==='earliest'?fs.due:'';
+ const v=date?validateFluRecord(child,date,editIndex):{ok:false,reason:'请填写实际接种日期',label:fs?fs.nextLabel:'未选择日期',minDate:earliest||fmt(addAge(parse(child.birth),{m:6})),dose:earliest?2:null};
+ if(!v.ok){let hint=(v.reason||'无法记录');if(earliest)hint+='。第2剂最早 '+earliest+'（间隔至少4周），最早日期不是预约';hint+='。本站不会自动预约或推送。';return{ok:false,label:v.label||(earliest?'本季第2剂':(fs&&fs.nextLabel)||'无法记录'),hint,minDate:earliest||v.minDate||'',dose:v.dose||(earliest?2:null)};}
+ let hint='将记为'+v.label+'。保存的是实际接种日期';
+ if(v.dose>1)hint+='。第2剂最早 '+v.earliest+'（间隔至少4周），最早日期不是预约';
+ hint+='。本站不会自动预约或推送提醒。';
+ return{ok:true,label:v.label,hint,dose:v.dose,minDate:v.minDate,earliest:v.earliest};
 }
 function applyMcv4NationalCoverage(child,coverDates){
  const recs=(child.records||[]).filter(r=>r.vid==='mcv4').sort((a,b)=>a.date<b.date?-1:1);if(!recs.length)return;
@@ -138,7 +178,7 @@ function seriesPlan(child,today){
    continue;
   }
   if(v.id==='flu'){const fs=fluSeries(child,fmt(today));
-   out.push({id:v.id,name:v.name,group:v.group,nip:false,excl:null,selected:sel,given:fs.given,total:fs.total,status:sel?fs.status:'unselected',due:sel?fs.due:null,nextLabel:sel?fs.nextLabel:'',coveredBy:null,laterDue:null,laterLabel:'',catchupNote:sel?v.catchup:'',perProduct:true,optional:true,fluNote:sel?v.note:""});
+   out.push({id:v.id,name:v.name,group:v.group,nip:false,excl:null,selected:sel,given:fs.given,total:fs.total,status:sel?fs.status:'unselected',due:sel?fs.due:null,nextLabel:sel?fs.nextLabel:'',dueKind:sel?fs.dueKind:null,seasonDone:!!fs.seasonDone,coveredBy:null,laterDue:null,laterLabel:'',catchupNote:sel?v.catchup:'',perProduct:true,optional:true,fluNote:sel?v.note:""});
    continue;}
   let allDates=combined(v.id);
   // coverer 自身：进度按覆盖目标计算（支持中途切换）
@@ -182,8 +222,16 @@ function upcoming(child,today){const T=today?parse(today):parse(new Date().toISO
  seriesPlan(child,today).forEach(s=>{if(s.due&&['overdue','soon','future'].includes(s.status))L.push(s);
   else if(s.status==='covered'&&s.laterDue)L.push({...s,status:statusOf(s.laterDue,T),due:s.laterDue<fmt(T)?fmt(T):s.laterDue,nextLabel:s.laterLabel,later:true});});
  return L.sort((a,b)=>a.due<b.due?-1:1);}
-function timeline(child){const b=parse(child.birth),items=[];for(const v of V){if(v.catchupOnly||(v.sexOnly&&child.sex&&child.sex!==v.sexOnly&&v.nip))continue;v.doses.forEach((d,i)=>items.push({vid:v.id,dose:i,name:v.name,label:d.label,nip:v.nip,date:fmt(addAge(b,d.age)),age:d.age}));}return items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(b.nip-a.nip));}
-function ics(child,today){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//vaccine-tracker//CN','CALSCALE:GREGORIAN'];upcoming(child,today).forEach((s,i)=>{const d=s.due.replace(/-/g,'');L.push('BEGIN:VEVENT','UID:'+child.id+'-'+s.id+'-'+d+'@vt','DTSTAMP:'+d+'T000000Z','DTSTART;VALUE=DATE:'+d,'SUMMARY:'+child.name+' 接种 '+s.name+' '+s.nextLabel,'DESCRIPTION:仅供参考，请以接种门诊安排为准','BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:疫苗接种提醒','END:VALARM','END:VEVENT');});L.push('END:VCALENDAR');return L.join('\r\n');}
+function fluTimelineItems(child,todayStr){
+ const labels=fluHistoryLabels(child);
+ const recs=(child.records||[]).map((r,i)=>({...r,i})).filter(r=>r.vid==='flu'&&isValidRecordDate(r.date)).sort((a,b)=>a.date<b.date?-1:1);
+ const items=recs.map(r=>({vid:'flu',name:'流感疫苗(每年)',label:labels[r.i]||'流感',nip:false,date:r.date,ageLabel:'已接种',done:true,dueKind:'recorded',appointment:false}));
+ const fs=fluSeries(child,todayStr);
+ items.push({vid:'flu',name:'流感疫苗(每年)',label:fs.nextLabel,nip:false,date:fs.due,ageLabel:fs.dueKind==='earliest'?'最早可接种':fs.seasonDone?'下一流行季':'建议接种',done:false,dueKind:fs.dueKind,seasonDone:!!fs.seasonDone,appointment:false});
+ return items;
+}
+function timeline(child,todayStr){const today=todayStr||fmt(new Date()),b=parse(child.birth),items=[];for(const v of V){if(v.catchupOnly||(v.sexOnly&&child.sex&&child.sex!==v.sexOnly&&v.nip))continue;if(v.id==='flu'){fluTimelineItems(child,today).forEach(it=>items.push(it));continue;}v.doses.forEach((d,i)=>items.push({vid:v.id,dose:i,name:v.name,label:d.label,nip:v.nip,date:fmt(addAge(b,d.age)),age:d.age}));}return items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(b.nip-a.nip));}
+function ics(child,today){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//vaccine-tracker//CN','CALSCALE:GREGORIAN'];upcoming(child,today).forEach(s=>{if(s.dueKind==='earliest')return;const d=s.due.replace(/-/g,'');const desc=s.id==='flu'?'建议接种时间，不是门诊预约。本站不会自动推送或代为预约。请以接种门诊安排为准':'仅供参考，请以接种门诊安排为准';L.push('BEGIN:VEVENT','UID:'+child.id+'-'+s.id+'-'+d+'@vt','DTSTAMP:'+d+'T000000Z','DTSTART;VALUE=DATE:'+d,'SUMMARY:'+child.name+' 接种 '+s.name+' '+s.nextLabel,'DESCRIPTION:'+desc);if(s.id!=='flu')L.push('BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:疫苗接种提醒','END:VALARM');L.push('END:VEVENT');});L.push('END:VCALENDAR');return L.join('\r\n');}
 function ageText(birth,today){const b=parse(birth),t=today?parse(today):new Date();let m=(t.getUTCFullYear()-b.getUTCFullYear())*12+t.getUTCMonth()-b.getUTCMonth();if(t.getUTCDate()<b.getUTCDate())m--;if(m<1)return Math.floor((t-b)/DAY)+'天';return m<24?m+'月龄':Math.floor(m/12)+'岁'+(m%12?m%12+'个月':'');}
 // ===== 云同步（Supabase REST，无 supabase-js）=====
 const SUPABASE_URL='https://hdvcfesguugxfapurfif.supabase.co';
@@ -224,8 +272,8 @@ function sessionFromAuthResponse(body){
 }
 function needsTokenRefresh(sess,skewMs=120e3){return!sess||!sess.expires_at||Date.now()>=sess.expires_at-skewMs;}
 // ===== 导入 / 导出（完整备份 + 单孩子 profile/records 格式）=====
-const ADDON_IMPORT={pentavalent:'penta',rotavirus3:'rv3',rotavirus5:'rv5',mcv4:'mcv4',menhycia:'mcv4'};
-const ADDON_EXPORT={penta:'pentavalent',rv3:'rotavirus3',rv5:'rotavirus5',mcv4:'mcv4'};
+const ADDON_IMPORT={pentavalent:'penta',rotavirus3:'rv3',rotavirus5:'rv5',mcv4:'mcv4',menhycia:'mcv4',flu:'flu'};
+const ADDON_EXPORT={penta:'pentavalent',rv3:'rotavirus3',rv5:'rotavirus5',mcv4:'mcv4',flu:'flu'};
 const DOSE_SLUG_IMPORT={rota3:'rv3',rota5:'rv5',pentavalent:'penta',menhycia:'mcv4'};
 const DOSE_SLUG_EXPORT={rv3:'rota3',rv5:'rota5'};
 function exportDoseSlug(vid){return DOSE_SLUG_EXPORT[vid]||vid;}
@@ -307,6 +355,6 @@ function importIntoState(state,raw,onConflict){
 const API={isSelected,selfPaidCatalog,normalizeChildSelfPaid,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
  SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh,
  ADDON_IMPORT,ADDON_EXPORT,convertSingleChildExport,exportSingleChild,detectImportFormat,mergeChildRecords,importIntoState,isValidRecordDate,parseDoseKey,
- ageInMonths,mcv4BandFromMonths,mcv4BandFirst,mcv4Spec,mcv4Series,applyMcv4NationalCoverage,fluSeries};
+ ageInMonths,mcv4BandFromMonths,mcv4BandFirst,mcv4Spec,mcv4Series,applyMcv4NationalCoverage,fluSeries,fluHistoryLabels,validateFluRecord,describeFluDose};
 if(typeof module!=='undefined')module.exports=API;else root.VT=API;
 })(this);
