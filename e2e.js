@@ -44,6 +44,7 @@ const child=(id,name)=>({id,name,birth:'2026-04-01',sex:'F',records:[],selfPaid:
  assert.equal(remote.a.children[0].name,'云端小红');assert.deepEqual(await pg.evaluate(()=>JSON.parse(localStorage.getItem('vt_data_v1'))),legacy);
  assert.equal(await pg.$eval('.picker button',e=>e.disabled),false);
  await pg.reload();await waitReady();assert.match(await pg.$eval('#main',e=>e.innerText),/云端小红/);
+ await avatarFlow(pg,remote,legacy,check);
  assert(await pg.$('#spPlan'));assert.equal(await pg.$('.avail'),null);assert.equal(await pg.$eval('#spPlan .sp-plan-h',e=>e.getAttribute('aria-expanded')),'false');
  check('添加孩子仅写远端，刷新从远端恢复，旧本机数据不变');
  check('概览页仅保留一处自费疫苗计划勾选，无「可选的自费疫苗」重复入口');
@@ -83,8 +84,10 @@ const child=(id,name)=>({id,name,birth:'2026-04-01',sex:'F',records:[],selfPaid:
  check('登录过期时锁定记录，token 刷新后恢复云端读取');
  await pg.evaluate(()=>delRec(0)); // 当前导入的孩子有记录
  assert.equal(await pg.evaluate(()=>cur().records.length),remote.a.children.find(c=>c.id===remote.a.cur).records.length);
+ assert.equal(await pg.$('.act-del'),null);
+ assert.equal(await pg.evaluate(()=>document.body.innerText.includes('删除孩子')),false);
  await pg.evaluate(()=>delChild());assert.equal(remote.a.children.length,1);
- check('删除记录及孩子同步保存至远端');
+ check('删除记录仍同步到远端；页面上没有删除孩子按钮');
  await pg.evaluate(()=>clearLegacy());assert.equal(await pg.evaluate(()=>localStorage.getItem('vt_data_v1')),null);
  await pg.evaluate(()=>toggleSP('mcv4',true));assert.equal(await pg.evaluate(()=>localStorage.getItem('vt_data_v1')),null);
  assert.deepEqual(await pg.evaluate(()=>Object.keys(localStorage)),['vt_auth_v1']);
@@ -99,6 +102,84 @@ const child=(id,name)=>({id,name,birth:'2026-04-01',sex:'F',records:[],selfPaid:
  }finally{await browser.close();await new Promise(r=>server.close(r))}
 })().catch(e=>{console.error(e);process.exitCode=1});
 
+function writeWidePng(file){
+ const zlib=require('node:zlib'),w=400,h=200,raw=Buffer.alloc((w*4+1)*h);
+ for(let y=0;y<h;y++){const row=y*(w*4+1);raw[row]=0;for(let x=0;x<w;x++){const i=row+1+x*4,blue=x<200;raw[i]=blue?0:255;raw[i+1]=0;raw[i+2]=blue?255:0;raw[i+3]=255}}
+ const table=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;table[n]=c>>>0}
+ const crc32=buf=>{let c=0xffffffff;for(const b of buf)c=table[(c^b)&0xff]^(c>>>8);return (c^0xffffffff)>>>0};
+ const chunk=(type,data)=>{const body=Buffer.concat([Buffer.from(type),data]),len=Buffer.alloc(4),sum=Buffer.alloc(4);len.writeUInt32BE(data.length);sum.writeUInt32BE(crc32(body));return Buffer.concat([len,body,sum])};
+ const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(w,0);ihdr.writeUInt32BE(h,4);ihdr[8]=8;ihdr[9]=6;
+ fs.writeFileSync(file,Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]));
+}
+async function avatarFlow(pg,remote,legacy,check){
+ await pg.setViewport({width:390,height:844,isMobile:true,hasTouch:true});
+ assert.equal(await pg.evaluate(()=>document.body.innerText.includes('删除孩子')),false);
+ assert.equal(await pg.$('.act-del'),null);
+ assert.equal(await pg.$eval('#avatarFile',e=>e.accept),'image/*');
+ assert.equal(await pg.$eval('#avatarFile',e=>e.hasAttribute('capture')),false);
+ assert.equal(await pg.$eval('#childAvatar',e=>e.textContent.trim()),'云');
+ assert.equal(await pg.$eval('.who .avatar',e=>e.textContent.trim()),'云');
+ const uploadH=await pg.$eval('.who .avatar-actions button',e=>e.getBoundingClientRect().height);
+ assert.ok(uploadH>=44,'上传头像点按高度 '+uploadH);
+ assert.equal(await pg.$eval('.who .avatar-actions button',e=>e.textContent),'上传头像');
+ const oriented=await pg.evaluate(async()=>{
+  const canvas=document.createElement('canvas');canvas.width=120;canvas.height=40;
+  const ctx=canvas.getContext('2d');ctx.fillStyle='#ff0000';ctx.fillRect(0,0,60,40);ctx.fillStyle='#0000ff';ctx.fillRect(60,0,60,40);
+  const bin=Uint8Array.from(atob(canvas.toDataURL('image/jpeg',0.95).split(',')[1]),c=>c.charCodeAt(0));
+  const exif=Uint8Array.from([0xff,0xe1,0x00,0x22,0x45,0x78,0x69,0x66,0x00,0x00,0x49,0x49,0x2a,0x00,0x08,0x00,0x00,0x00,0x01,0x00,0x12,0x01,0x03,0x00,0x01,0x00,0x00,0x00,0x06,0x00,0x00,0x00,0x00,0x00,0x00,0x00]);
+  const jpeg=new Uint8Array(bin.length+exif.length);jpeg.set(bin.slice(0,2),0);jpeg.set(exif,2);jpeg.set(bin.slice(2),2+exif.length);
+  const url=await fileToAvatarDataUrl(new File([jpeg],'oriented.jpg',{type:'image/jpeg'}));
+  const img=new Image();await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=url});
+  const c2=document.createElement('canvas');c2.width=img.naturalWidth;c2.height=img.naturalHeight;const g=c2.getContext('2d');g.drawImage(img,0,0);
+  const top=g.getImageData(128,16,1,1).data,bottom=g.getImageData(128,240,1,1).data;
+  return {w:img.naturalWidth,h:img.naturalHeight,bytes:VT.avatarByteLength(url),top:[...top],bottom:[...bottom]};
+ });
+ assert.equal(oriented.w,256);assert.equal(oriented.h,256);
+ assert.ok(oriented.bytes>0&&oriented.bytes<=30*1024,'EXIF 压缩后 '+oriented.bytes);
+ assert.ok(oriented.top[0]>oriented.top[2]+80,'方向校正后上方应是红色 '+oriented.top);
+ assert.ok(oriented.bottom[2]>oriented.bottom[0]+80,'方向校正后下方应是蓝色 '+oriented.bottom);
+ const png=require('node:os').tmpdir()+'/vt-avatar-wide.png';writeWidePng(png);
+ const [chooser]=await Promise.all([pg.waitForFileChooser(),pg.click('.who .avatar-actions button')]);
+ await chooser.accept([png]);
+ await pg.waitForFunction(()=>!syncBusy&&cur().avatar&&String(cur().avatar).startsWith('data:image/jpeg'));
+ const shot=await pg.evaluate(async()=>{
+  const img=new Image();await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=cur().avatar});
+  const c2=document.createElement('canvas');c2.width=img.naturalWidth;c2.height=img.naturalHeight;const g=c2.getContext('2d');g.drawImage(img,0,0);
+  return {w:img.naturalWidth,h:img.naturalHeight,bytes:VT.avatarByteLength(cur().avatar),left:[...g.getImageData(16,128,1,1).data],right:[...g.getImageData(240,128,1,1).data]};
+ });
+ assert.equal(shot.w,256);assert.equal(shot.h,256);
+ assert.ok(shot.bytes>0&&shot.bytes<=30*1024,'上传压缩后 '+shot.bytes);
+ assert.ok(shot.left[2]>shot.left[0]+80,'居中裁切左侧应是蓝色 '+shot.left);
+ assert.ok(shot.right[0]>shot.right[2]+80,'居中裁切右侧应是红色 '+shot.right);
+ assert.equal(remote.a.children[0].avatar,await pg.evaluate(()=>cur().avatar));
+ assert.equal(await pg.evaluate(()=>VT.exportSingleChild(cur()).profile.avatar),remote.a.children[0].avatar);
+ assert.equal(await pg.$eval('#childAvatar img',e=>e.tagName),'IMG');
+ assert.equal(await pg.$eval('.who .avatar img',e=>e.tagName),'IMG');
+ const labels=await pg.$$eval('.who .avatar-actions button',els=>els.map(e=>e.textContent));
+ assert.deepEqual(labels,['更换头像','删除头像']);
+ for(const h of await pg.$$eval('.who .avatar-actions button',els=>els.map(e=>Math.round(e.getBoundingClientRect().height))))assert.ok(h>=44,'头像按钮高度 '+h);
+ assert.deepEqual(await pg.evaluate(()=>JSON.parse(localStorage.getItem('vt_data_v1'))),legacy);
+ assert.deepEqual((await pg.evaluate(()=>Object.keys(localStorage))).sort(),['vt_auth_v1','vt_data_v1']);
+ await pg.evaluate(()=>document.querySelectorAll('.who .avatar-actions button')[1].click());
+ await pg.waitForFunction(()=>!syncBusy&&!cur().avatar);
+ assert.equal(remote.a.children[0].avatar,undefined);
+ assert.equal(await pg.$eval('.who .avatar',e=>e.textContent.trim()),'云');
+ await pg.evaluate(()=>editChild(cur()));
+ await pg.waitForSelector('#draftAvatar');
+ assert.ok((await pg.$eval('#draftAvatarPick',e=>e.getBoundingClientRect().height))>=44);
+ const [chooser2]=await Promise.all([pg.waitForFileChooser(),pg.click('#draftAvatarPick')]);
+ await chooser2.accept([png]);
+ await pg.waitForSelector('#draftAvatar img');
+ await pg.click('#dform button.p');
+ await pg.waitForFunction(()=>!syncBusy&&cur().avatar&&String(cur().avatar).startsWith('data:image/jpeg'));
+ assert.ok(remote.a.children[0].avatar.startsWith('data:image/jpeg'));
+ assert.ok((await pg.evaluate(()=>VT.avatarByteLength(cur().avatar)))<=30*1024);
+ await pg.evaluate(()=>clearAvatar(cur().id));
+ await pg.waitForFunction(()=>!syncBusy&&!cur().avatar);
+ assert.equal(remote.a.children[0].avatar,undefined);
+ await pg.setViewport({width:800,height:600});
+ check('孩子头像可拍照或从相册选取，裁成正方形 JPEG 后随云端档案保存，旧本机记录不变');
+}
 // 只用模拟账号和模拟孩子，不访问生产 Supabase，也不写入真实接种档案。
 async function fluRecordFlow(browser,url,check,errors){
  const remote={flu:{children:[{id:'c-flu',name:'浔宝',birth:'2026-05-11',sex:'M',records:[],selfPaid:{}}],cur:'c-flu'}};
