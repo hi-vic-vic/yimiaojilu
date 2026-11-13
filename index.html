@@ -6,193 +6,222 @@
 <meta name="apple-mobile-web-app-title" content="接种簿">
 <meta name="application-name" content="接种簿">
 <style>
-/* Design read: Soft UI + Bento 概览 + Clay 下一针 hero；低饱和松绿/鼠尾草，暖 off-white 底，自包含单文件。 */
+/* 接种簿：灰纸底、墨字，日期用一枚松绿印章。色来自图标，不另起一套。 */
 :root{
- --bg:#f0ede6;--surface:#faf8f4;--raised:#ffffff;--line:#ddd8cf;--text:#1c2420;--muted:#3d4a44;--faint:#5f6d66;
- --accent:#4a7d68;--accent-deep:#3a6654;--accent-ink:#f7faf8;--accent-soft:#e3ece7;--mint:#b8d4c8;
- --late:#9a382e;--late-soft:#f6e8e5;--soon:#7a4e0c;--soon-soft:#f5ecd9;--ok:#356b58;--ok-soft:#e0ebe6;--idle:#4a5852;--idle-soft:#e8ebe9;
- --hero-chip-bg:color-mix(in srgb,var(--accent-ink) 26%,transparent);--hero-chip-line:color-mix(in srgb,var(--accent-ink) 58%,transparent);
- --shadow-soft:0 2px 4px #3d5a4a0a,0 12px 32px -8px #3d5a4a18,0 24px 48px -20px #3d5a4a12;
- --shadow-clay-out:0 14px 28px -10px #2f4a3d38,0 4px 12px -2px #2f4a3d22;
- --shadow-clay-in:inset 0 2px 4px #ffffff55,inset 0 -3px 8px #1a302820;
- --r-hero:28px;--r-panel:20px;--r-ctl:14px;--r-chip:10px;
- --font:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Noto Sans SC","Source Han Sans SC",system-ui,sans-serif;
- --shadow:var(--shadow-soft);
+ --bg:#fafafa;--surface:#ffffff;--raised:#f4f4f5;--line:rgba(23,23,23,.1);
+ --text:#171717;--secondary:#525252;--muted:#737373;
+ --accent:#4a7d68;--accent-deep:#3a6654;--accent-ink:#ffffff;
+ --late:#9a382e;--soon:#7a4e0c;--ok:#356b58;
+ --shadow:0 1px 2px rgba(0,0,0,.05);
+ --r-card:16px;--r-ctl:8px;
+ --ease:cubic-bezier(.22,1,.36,1);
+ --font:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Noto Sans SC","Microsoft YaHei","WenQuanYi Micro Hei",system-ui,sans-serif;
+ --stamp:"Songti SC","STSong","Songti TC","Noto Serif CJK SC","Source Han Serif SC",var(--font);
 }
 @media (prefers-color-scheme:dark){:root{
- --bg:#141816;--surface:#1e2421;--raised:#252c28;--line:#3a4540;--text:#eceee9;--muted:#b8c4bc;--faint:#8a9890;
- --accent:#7ab89f;--accent-deep:#5a9880;--accent-ink:#0f1814;--accent-soft:#283530;--mint:#4a6b5e;
- --late:#f0a196;--late-soft:#3a2220;--soon:#e2bd78;--soon-soft:#33291a;--ok:#8fc4ad;--ok-soft:#1f2f28;--idle:#a3b0a9;--idle-soft:#242b28;
- --hero-chip-bg:color-mix(in srgb,var(--accent-ink) 18%,transparent);--hero-chip-line:color-mix(in srgb,var(--accent-ink) 42%,transparent);
- --shadow-soft:0 2px 4px #0004,0 12px 32px -8px #0006,0 24px 48px -20px #0005;
- --shadow-clay-out:0 14px 28px -10px #0008,0 4px 12px -2px #0006;
- --shadow-clay-in:inset 0 2px 4px #ffffff12,inset 0 -3px 8px #0006}}
-*{box-sizing:border-box}[hidden]{display:none!important}html{scroll-behavior:smooth}
-body{margin:0;min-height:100dvh;background:var(--bg);color:var(--text);font:15px/1.55 var(--font);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
-h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.015em;text-wrap:balance;line-height:1.25}
-p{margin:0;max-width:72ch}.muted{color:var(--muted)}.faint{color:var(--faint);font-size:13px;line-height:1.5}
+ --bg:#141415;--surface:#19191b;--raised:#232325;--line:rgba(237,237,237,.1);
+ --text:#ededed;--secondary:#a1a1a6;--muted:#85858b;
+ --accent:#8fbfa8;--accent-deep:#c4ddd2;--accent-ink:#141415;
+ --late:#f0a196;--soon:#e2bd78;--ok:#8fbfa8;
+ --shadow:none}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100vh;min-height:100dvh;background:var(--bg);color:var(--text);font:15px/1.5 var(--font);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0;font-weight:500;letter-spacing:0;text-wrap:balance;line-height:1.25}
+p{margin:0;max-width:72ch}
+.muted{color:var(--secondary)}.faint{color:var(--muted);font-size:12px;line-height:1.5}
 button,select,input{font:inherit;color:inherit}
-.btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--raised);cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px -4px #3d5a4a14;
- transition:transform .2s cubic-bezier(.16,1,.3,1),background-color .2s,border-color .2s,box-shadow .2s}
-.btn:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));box-shadow:0 4px 14px -6px #3d5a4a20}
-.btn:active{transform:translateY(1px) scale(.98);box-shadow:0 1px 4px -2px #3d5a4a18}
-.btn.p{background:linear-gradient(165deg,color-mix(in srgb,var(--accent) 88%,#fff),var(--accent-deep));border-color:color-mix(in srgb,var(--accent-deep) 80%,var(--accent));color:var(--accent-ink);font-weight:600;
- box-shadow:var(--shadow-clay-out),var(--shadow-clay-in)}.btn.p:hover{filter:brightness(1.04)}.btn.p:active{filter:brightness(.98)}
-.btn.link{border-color:transparent;background:none;color:var(--accent);padding:0 8px;min-height:36px}
-.btn.danger{color:var(--late)}.btn.sm{min-height:34px;padding:0 12px;font-size:14px}
+button,a,label,.opt{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--surface);cursor:pointer;white-space:nowrap;font-weight:400;box-shadow:none;
+ transition:background-color 160ms var(--ease),border-color 160ms var(--ease),color 160ms var(--ease),transform 160ms var(--ease)}
+.btn:hover{background:var(--raised)}
+.btn:active{transform:scale(.98)}
+.btn.p{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.btn.p:hover{background:var(--accent-deep);border-color:var(--accent-deep)}
+.btn.ghost{background:var(--surface);color:var(--text);border-color:var(--line)}
+.btn.link{border-color:transparent;background:transparent;color:var(--accent);padding:0 12px}
+.btn.link:hover{background:var(--raised)}
+.btn.danger{color:var(--late)}
+.btn.sm{padding:0 12px;font-size:14px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.top{position:sticky;top:0;z-index:2;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-.top-in{max-width:1180px;margin:0 auto;height:60px;padding:0 20px;display:flex;align-items:center;gap:14px}
-.brand{font-weight:700;font-size:18px;letter-spacing:.02em;color:var(--accent)}.brand small{font-weight:400;color:var(--muted);font-size:13px;margin-left:8px;letter-spacing:0}
-.sync{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;color:var(--muted);flex-wrap:wrap;justify-content:flex-end;max-width:min(52vw,420px)}
-.sync .dot{width:8px;height:8px;border-radius:50%;background:var(--idle);flex:none}
-.sync .dot.ok{background:var(--ok)}.sync .dot.busy{background:var(--soon)}.sync .dot.err{background:var(--late)}.sync .dot.off{background:var(--faint)}
-.sync .em{color:var(--text);font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.picker{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.picker select{min-height:40px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--surface);padding:0 10px;max-width:46vw}
-.top-in{flex-wrap:wrap;height:auto;min-height:60px;padding-top:8px;padding-bottom:8px}
-.wrap{max-width:1180px;margin:0 auto;padding:20px 20px 56px}
-.notice{border-left:3px solid var(--soon);background:var(--soon-soft);padding:10px 14px;border-radius:0 var(--r-ctl) var(--r-ctl) 0;font-size:13.5px;color:var(--text);margin-bottom:12px;max-width:80ch}
-.notice.info{border-color:var(--accent);background:var(--accent-soft)}
-.tabs{display:flex;gap:6px;margin:12px 0 28px;overflow-x:auto;scrollbar-width:none;padding:4px;background:color-mix(in srgb,var(--surface) 70%,var(--bg));border-radius:var(--r-panel);border:1px solid var(--line);box-shadow:inset 0 1px 2px #3d5a4a0a}
-.tabs button{border:0;background:transparent;padding:10px 18px;cursor:pointer;color:var(--muted);white-space:nowrap;font-size:15px;border-radius:calc(var(--r-ctl) + 2px);min-height:44px;
- transition:background .2s,color .2s,box-shadow .2s}
-.tabs button:hover{color:var(--text);background:color-mix(in srgb,var(--accent-soft) 50%,transparent)}
-.tabs button.on{color:var(--text);font-weight:600;background:var(--raised);box-shadow:0 2px 10px -4px #3d5a4a22}
-.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.panel{background:var(--surface);border-radius:var(--r-panel);border:1px solid color-mix(in srgb,var(--line) 85%,transparent);padding:24px;box-shadow:var(--shadow-soft)}
-.bento{display:grid;gap:20px;grid-template-columns:1fr;grid-template-areas:"hero" "stats" "rail" "up" "sp";align-items:start}
-.bento-hero{grid-area:hero}.bento-stats{grid-area:stats;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.top{position:sticky;top:0;z-index:2;background:var(--bg);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
+.top-in{max-width:1440px;margin:0 auto;min-height:64px;padding:8px 32px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-weight:500;font-size:18px;line-height:1;letter-spacing:0;color:var(--text)}
+.mark{width:24px;height:24px;display:block;flex:none}
+.brand small{font-weight:400;color:var(--secondary);font-size:13px;margin-left:8px;letter-spacing:0}
+.sync{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;line-height:1.4;color:var(--secondary);flex-wrap:wrap;justify-content:flex-end;max-width:min(52vw,480px)}
+.sync .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.sync .dot.ok{background:var(--ok)}.sync .dot.busy{background:var(--soon)}.sync .dot.err{background:var(--late)}.sync .dot.off{background:var(--muted)}
+.sync .em{color:var(--text);font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.picker{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.picker select{min-height:44px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--surface);padding:0 12px;max-width:46vw;font-size:16px}
+.wrap{max-width:1440px;margin:0 auto;padding:24px 32px 64px}
+.notice{border:1px solid var(--line);border-left:2px solid var(--soon);background:var(--surface);padding:12px 16px;border-radius:var(--r-ctl);font-size:14px;line-height:1.5;color:var(--text);margin:0 0 8px;max-width:none}
+.notice.info{border-left-color:var(--accent)}
+.tabs{display:flex;gap:4px;margin:16px 0 24px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:4px;background:var(--raised);border-radius:12px;border:1px solid var(--line)}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{border:1px solid transparent;background:transparent;padding:0 16px;cursor:pointer;color:var(--secondary);white-space:nowrap;font-size:15px;font-weight:400;border-radius:var(--r-ctl);min-height:44px;
+ transition:background-color 160ms var(--ease),color 160ms var(--ease),border-color 160ms var(--ease)}
+.tabs button:hover{color:var(--text);background:var(--surface)}
+.tabs button.on{color:var(--text);font-weight:500;background:var(--surface);border-color:var(--line)}
+.panel{background:var(--surface);border-radius:var(--r-card);border:1px solid var(--line);padding:20px;box-shadow:var(--shadow)}
+.bento{display:grid;gap:16px;grid-template-columns:1fr;grid-template-areas:"hero" "stats" "rail" "up" "sp";align-items:start}
+.bento-hero{grid-area:hero}.bento-stats{grid-area:stats}
 .bento-rail{grid-area:rail;display:flex;flex-direction:column;gap:16px;width:100%}
-.bento-up{grid-area:up;display:flex;flex-direction:column;min-height:0}
-.bento-up .up-inner{display:flex;flex-direction:column;flex:1;min-height:0}
-.bento-up .up-foot{margin-top:auto;padding-top:4px}
-.bento-sp{grid-area:sp}
-.stat-tile{padding:18px 20px;display:flex;flex-direction:column;justify-content:center;gap:4px;min-height:88px}
-.stat-tile b{font-size:32px;line-height:1;font-weight:700;letter-spacing:-.02em}
-.stat-tile span{font-size:13px;color:var(--muted);line-height:1.4}
-.stat-tile.late b{color:var(--late)}.stat-tile.soon b{color:var(--soon)}.stat-tile.done b{color:var(--ok)}
-@media (min-width:861px){.bento{grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:auto 1fr auto;gap:20px;align-items:stretch;
- grid-template-areas:"hero hero hero stats stats stats" "up up up rail rail rail" "sp sp sp sp sp sp"}
- .bento-stats{display:flex;flex-direction:column;gap:12px;align-self:stretch;min-height:100%;height:100%}
- .bento-stats .stat-tile{flex:1 1 0;min-height:5.5rem}
- .bento-hero.next{align-self:stretch;height:100%;min-height:100%;align-content:center}
- .bento-up{align-self:stretch;height:100%}
- .bento-rail{align-self:stretch;min-height:100%;height:100%}
- .bento-rail>.panel{flex:0 0 auto}
- .bento-rail>.panel:last-child{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
- .bento-ahead .ahead-list,.bento-ahead>p.muted{flex:1 1 auto}}
-/* 下一针 · clay */
-.next{display:grid;grid-template-columns:auto 1fr;gap:4px 28px;align-items:center;padding:32px 32px 28px;border-radius:var(--r-hero);
- background:linear-gradient(152deg,color-mix(in srgb,var(--accent) 92%,var(--mint)),var(--accent-deep) 58%,var(--accent-deep));
- color:var(--accent-ink);border:1px solid color-mix(in srgb,var(--mint) 35%,var(--accent-deep));
- box-shadow:var(--shadow-clay-out),var(--shadow-clay-in);position:relative;overflow:hidden}
-.next:before{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(120% 80% at 12% 0%,#ffffff28,transparent 55%);pointer-events:none}
-.next:after{content:"";position:absolute;right:-48px;top:-48px;width:200px;height:200px;border-radius:50%;border:32px solid color-mix(in srgb,var(--accent-ink) 8%,transparent);pointer-events:none}
-.next .when{font-size:56px;line-height:1;font-weight:800;letter-spacing:-.03em;padding-right:28px;border-right:1px solid color-mix(in srgb,var(--accent-ink) 30%,transparent)}
-.next .when small{display:block;font-size:14px;font-weight:500;letter-spacing:0;margin-top:8px;opacity:.85}
-.next.late{background:linear-gradient(152deg,color-mix(in srgb,var(--late) 85%,#fff),color-mix(in srgb,var(--late) 95%,#000));border-color:color-mix(in srgb,var(--late) 70%,#000)}
-.next .what h2{font-size:22px;line-height:1.3}.next .what p{margin-top:6px;opacity:.95;max-width:none}
-.next .acts{grid-column:1/-1;margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;position:relative;z-index:1}
-.next .what,.next .when{position:relative;z-index:1}
-.next .btn.p{background:linear-gradient(165deg,#fafcf9,color-mix(in srgb,var(--accent-ink) 92%,var(--mint)));color:var(--accent-deep);border-color:#ffffff66;
- box-shadow:0 8px 20px -8px #1a302a55,inset 0 2px 4px #fff9,inset 0 -2px 6px #1a302818}
-.next.late .btn.p{color:var(--late)}
-.next .btn.ghost{background:color-mix(in srgb,var(--accent-ink) 12%,transparent);color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent-ink) 45%,transparent);box-shadow:none}
-.next .chip,.next .chip.k-self,.next .k-self,.next .chip.s-overdue,.next .chip.s-soon,.next .chip.s-future,.next .chip.s-done,.next .chip.s-covered{
- color:var(--accent-ink);background:var(--hero-chip-bg);border:1px solid var(--hero-chip-line);box-shadow:none}
-.next.late .chip,.next.late .chip.k-self,.next.late .k-self,.next.late .chip.s-overdue,.next.late .chip.s-soon{
- color:#fff;background:color-mix(in srgb,#fff 24%,transparent);border-color:color-mix(in srgb,#fff 58%,transparent)}
-@media (prefers-reduced-motion:no-preference){.next{animation:rise .5s cubic-bezier(.16,1,.3,1) both}@keyframes rise{from{opacity:0;transform:translateY(8px)}}}
-.sec-h{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px 12px;margin-bottom:12px}.sec-h h3{font-size:18px;font-weight:600}
-/* 疫苗行 */
-.v{display:grid;grid-template-columns:1fr auto;gap:6px 14px;padding:16px 0}
+.bento-up{grid-area:up}.bento-sp{grid-area:sp}
+.bento-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;padding:8px 4px}
+.stat{padding:12px;display:flex;flex-direction:column;justify-content:center;gap:4px;min-height:88px}
+.stat+.stat{box-shadow:inset 1px 0 0 var(--line)}
+.stat b{font-size:32px;line-height:1;font-weight:500;letter-spacing:0;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--secondary);line-height:1.4}
+.stat.late b{color:var(--late)}
+@media (min-width:860px){
+ .wrap{padding:32px 32px 80px}
+ .panel{padding:24px}
+ .tabs{margin:24px 0 32px}
+ .bento{grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);gap:24px;grid-template-areas:"hero stats" "up rail" "sp sp"}
+ .bento-stats{grid-template-columns:1fr;align-content:center;height:100%;padding:12px 8px}
+ .stat{min-height:72px}
+ .stat+.stat{box-shadow:inset 0 1px 0 var(--line)}
+}
+.next{display:grid;grid-template-columns:1fr;gap:16px;align-items:center;justify-items:start;padding:24px}
+.stamp{width:132px;height:132px;border-radius:50%;border:1.5px solid var(--accent);background:var(--surface);
+ box-shadow:inset 0 0 0 4px var(--surface),inset 0 0 0 5.5px var(--accent);
+ display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--accent);
+ font-family:var(--stamp);font-size:22px;font-weight:500;line-height:1.15;letter-spacing:0;padding:16px}
+.stamp small{display:block;margin-top:4px;font-family:var(--font);font-size:12px;font-weight:400;letter-spacing:0;line-height:1.3;color:var(--accent)}
+.next.late .stamp{border-color:var(--late);color:var(--late);box-shadow:inset 0 0 0 4px var(--surface),inset 0 0 0 5.5px var(--late)}
+.next.late .stamp small{color:var(--late)}
+.next .what h2{font-size:22px;font-weight:500;line-height:1.3}
+.next .what p{margin-top:8px;color:var(--secondary);max-width:none}
+.next .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+@media (min-width:860px){
+ .stamp{width:168px;height:168px;font-size:28px}
+ .next{grid-template-columns:auto minmax(0,1fr);gap:16px 24px;justify-items:stretch;align-items:center}
+}
+.sec-h{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px 12px;margin-bottom:8px}
+.sec-h h3{font-size:16px;font-weight:500}
+.v{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;padding:16px 0}
 .v+.v{border-top:1px solid var(--line)}
-.v .n{font-weight:600;font-size:15px;line-height:1.35}.v .meta{grid-column:1;color:var(--muted);font-size:13.5px;line-height:1.55;max-width:72ch}
-.v .act{grid-row:1/3;grid-column:2;align-self:center;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
-.v .tip{grid-column:1/-1;font-size:13px;color:var(--late);background:var(--late-soft);border-radius:var(--r-ctl);padding:8px 10px;margin-top:6px;max-width:72ch}
-.chip{display:inline-block;font-size:12px;line-height:20px;padding:2px 10px;border-radius:var(--r-chip);margin-left:6px;vertical-align:1px;font-weight:600;letter-spacing:.01em}
-.s-overdue{color:var(--late);background:var(--late-soft)}.s-soon{color:var(--soon);background:var(--soon-soft)}.s-done{color:var(--ok);background:var(--ok-soft)}
-.s-covered{color:var(--accent);background:var(--accent-soft)}
-.s-future,.s-expired,.s-alt,.s-unselected{color:var(--idle);background:var(--idle-soft)}
-.k-self{color:var(--muted);border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 70%,var(--bg))}
+.v .n{font-weight:500;font-size:15px;line-height:1.4}
+.v .meta{grid-column:1;color:var(--secondary);font-size:14px;line-height:1.5;max-width:72ch}
+.v .act{grid-row:1/3;grid-column:2;align-self:center;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.v .tip{grid-column:1/-1;font-size:13px;line-height:1.5;color:var(--late);background:transparent;border-left:2px solid var(--late);border-radius:0;padding:4px 0 4px 12px;margin-top:4px;max-width:72ch}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:16px;font-weight:400;letter-spacing:0;padding:0;margin-left:8px;vertical-align:1px;color:var(--secondary);background:none;border:0}
+.chip:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--muted);flex:none}
+.s-overdue{color:var(--late)}.s-overdue:before{background:var(--late)}
+.s-soon{color:var(--soon)}.s-soon:before{background:var(--soon)}
+.s-done{color:var(--ok)}.s-done:before{background:var(--ok)}
+.s-covered{color:var(--accent)}.s-covered:before{background:var(--accent)}
+.s-future,.s-expired,.s-alt,.s-unselected{color:var(--secondary)}
+.k-self{color:var(--muted)}.k-self:before{background:var(--muted)}
 .opts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.opt{display:flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:1px solid var(--line);border-radius:var(--r-ctl);cursor:pointer;font-size:14px;background:var(--bg);box-shadow:0 2px 6px -4px #3d5a4a12;
- transition:transform .2s,border-color .2s,box-shadow .2s}
-.opt:hover{box-shadow:0 4px 12px -6px #3d5a4a18}.opt:active{transform:scale(.99)}
-.opt.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 1px 2px #3d5a4a0a,0 2px 8px -4px #3d5a4a14}.opt input{accent-color:var(--accent);width:16px;height:16px;margin:0}.opt small{display:block;font-size:12px;color:var(--muted)}
-.covered-note{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}.covered-note b{font-weight:500;margin-right:4px}.covered-note .chip{margin-left:0}
-.avail{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.avail summary{cursor:pointer;color:var(--muted);font-size:14px}
+.opt{display:flex;align-items:center;gap:8px;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-ctl);cursor:pointer;font-size:14px;background:var(--surface);
+ transition:background-color 160ms var(--ease),border-color 160ms var(--ease)}
+.opt:hover{background:var(--raised)}
+.opt.on{border-color:var(--accent);background:var(--surface)}
+.opt input{accent-color:var(--accent);width:18px;height:18px;margin:0;flex:none}
+.opt small{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.covered-note{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);font-size:14px;color:var(--secondary);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.covered-note b{font-weight:500;margin-right:4px}.covered-note .chip{margin-left:0}
 #spPlan.panel{padding:0;overflow:hidden}
-.sp-plan-h{display:flex;align-items:center;gap:10px;width:100%;padding:18px 20px;border:0;background:transparent;cursor:pointer;text-align:left;font:inherit;color:inherit;border-radius:var(--r-panel);min-height:56px}
-.sp-plan-h:hover{background:color-mix(in srgb,var(--accent) 7%,transparent)}.sp-plan-h:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.sp-plan-h h3{margin:0;font-size:18px;font-weight:600;flex:none}
-.sp-plan-sum{flex:1;font-size:14px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sp-chev{flex:none;color:var(--faint);font-size:22px;line-height:1;transform:rotate(0deg);transition:transform .25s cubic-bezier(.16,1,.3,1)}
-#spPlan.sp-open .sp-chev{transform:rotate(90deg)}
-.sp-plan-body{max-height:0;opacity:0;overflow:hidden;padding:0 20px;transition:max-height .35s cubic-bezier(.16,1,.3,1),opacity .25s ease,padding .25s ease}
-#spPlan.sp-open .sp-plan-body{max-height:3200px;opacity:1;padding:0 20px 20px}
-.sp-plan-body .opts{margin-top:4px}
-/* 侧栏 */
-.who h2{font-size:22px}.who p{margin-top:2px}
-.act-block{margin-top:18px;padding-top:18px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
-.act-row{display:flex;flex-wrap:wrap;gap:8px}.act-row.primary .btn.p{flex:1;min-width:7rem;justify-content:center}
-.act-data{border:1px solid var(--line);border-radius:var(--r-ctl);padding:10px 12px;background:color-mix(in srgb,var(--bg) 40%,var(--surface));box-shadow:inset 0 1px 2px #3d5a4a06}
-.act-data summary{cursor:pointer;font-size:14px;font-weight:500;color:var(--muted);list-style:none;display:flex;align-items:center;gap:6px}
+.sp-plan-h{display:flex;align-items:center;gap:12px;width:100%;padding:16px 20px;border:0;background:transparent;cursor:pointer;text-align:left;font:inherit;color:inherit;border-radius:var(--r-card);min-height:56px}
+.sp-plan-h:hover{background:var(--raised)}
+.sp-plan-h h3{margin:0;font-size:16px;font-weight:500;flex:none}
+.sp-plan-sum{flex:1;font-size:14px;color:var(--secondary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-chev{flex:none;width:8px;height:8px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(-45deg);transition:transform 160ms var(--ease)}
+#spPlan.sp-open .sp-chev{transform:rotate(45deg)}
+.sp-plan-body{display:none;padding:0 20px 20px}
+#spPlan.sp-open .sp-plan-body{display:block}
+.who h2{font-size:22px;font-weight:500}
+.who p{margin-top:4px}
+.act-block{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
+.act-row{display:flex;flex-wrap:wrap;gap:8px}
+.act-row.primary .btn.p{flex:1;min-width:8rem;justify-content:center}
+.act-data{border:1px solid var(--line);border-radius:var(--r-ctl);padding:4px 12px;background:var(--bg)}
+.act-data summary{cursor:pointer;font-size:14px;font-weight:500;color:var(--secondary);list-style:none;display:flex;align-items:center;gap:8px;min-height:44px}
 .act-data summary::-webkit-details-marker{display:none}
-.act-data summary:after{content:"›";margin-left:auto;color:var(--faint);transform:rotate(90deg);transition:transform .2s}
-.act-data[open] summary:after{transform:rotate(-90deg)}
-.act-data .act-row{margin-top:10px}
-.act-del{align-self:flex-start;margin-top:4px;padding-left:0}
-.prog-block+.prog-block{margin-top:14px}
+.act-data summary:after{content:"";width:8px;height:8px;margin-left:auto;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(-45deg);transition:transform 160ms var(--ease)}
+.act-data[open] summary:after{transform:rotate(45deg)}
+.act-data .act-row{margin:0 0 8px}
+.act-del{align-self:flex-start}
+.prog-block+.prog-block{margin-top:16px}
 .prog-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px;font-weight:500;margin-bottom:8px}
-.prog-track{height:10px;border-radius:999px;background:color-mix(in srgb,var(--line) 55%,var(--bg));overflow:hidden;box-shadow:inset 0 1px 3px #3d5a4a12}
-.prog-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--accent-soft),var(--accent));min-width:0;transition:width .35s cubic-bezier(.16,1,.3,1)}
-.prog-block.sp .prog-fill{background:linear-gradient(90deg,color-mix(in srgb,var(--mint) 50%,var(--surface)),var(--accent))}
-.recent-list{margin:0;padding:0;list-style:none;display:grid;gap:10px}
-.recent-list li{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:14px;line-height:1.4}
-.recent-list .nm{font-weight:600}.recent-list .dt{color:var(--muted);font-size:13px;white-space:nowrap}
-.ahead-list{margin:0;padding:0;list-style:none;display:grid;gap:8px}
-.ahead-list li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:baseline;font-size:13.5px}
-.ahead-list .dt{font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums;min-width:4.5em}
-.ahead-list .nm{color:var(--text)}.ahead-list .sub{grid-column:2;color:var(--muted);font-size:12.5px}
-/* 时间轴 */
-.tl{position:relative;padding-left:22px}.tl:before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:var(--line)}
-.tl .age{position:relative;margin:22px 0 6px;font-weight:600}.tl .age:first-child{margin-top:0}
-.tl .age:before{content:"";position:absolute;left:-21px;top:7px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--accent)}
+.prog-track{height:8px;border-radius:4px;background:var(--raised);overflow:hidden}
+.prog-fill{height:100%;border-radius:4px;background:var(--accent);min-width:0}
+.recent-list{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:12px}
+.recent-list li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;font-size:14px;line-height:1.4}
+.recent-list .nm{font-weight:500}.recent-list .dt{color:var(--secondary);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ahead-list{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:12px}
+.ahead-list li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;align-items:baseline;font-size:14px}
+.ahead-list .dt{font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;min-width:5.5em;white-space:nowrap}
+.ahead-list .nm{color:var(--text)}.ahead-list .sub{grid-column:2;color:var(--secondary);font-size:12px;line-height:1.4}
+.tl{position:relative;padding-left:24px}
+.tl:before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:1px;background:var(--line)}
+.tl .age{position:relative;margin:24px 0 8px;font-weight:500}
+.tl .age:first-child{margin-top:0}
+.tl .age:before{content:"";position:absolute;left:-24px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:1.5px solid var(--accent);box-shadow:inset 0 0 0 2px var(--surface),inset 0 0 0 3.5px var(--accent)}
 .tl .age .faint{font-weight:400;margin-left:8px}
-.tl .row{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:14.5px}.tl .row .mk{width:16px;flex:none;color:var(--faint)}.tl .row.ok .mk{color:var(--ok)}.tl .row .btn{margin-left:auto;flex:none}
+.tl .row{display:flex;gap:8px;align-items:center;padding:8px 0;font-size:14px;line-height:1.45}
+.tl .row .mk{width:16px;height:16px;flex:none;color:var(--muted);display:inline-flex;align-items:center;justify-content:center}
+.tl .row.ok .mk{color:var(--ok)}
+.mk-i{width:14px;height:14px;border:1.5px solid currentColor;border-radius:50%;display:block;box-sizing:border-box}
+.mk-i.done{background:currentColor;box-shadow:inset 0 0 0 2px var(--surface)}
+.tl .row .btn{margin-left:auto;flex:none}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
-/* 空状态 */
-.hello{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:32px;align-items:center;padding:36px}
-.hello h1{font-size:32px;line-height:1.2}.hello p{margin-top:12px;max-width:34ch;color:var(--muted)}
-.hello .acts{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
-.hello ol{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:14px}
-.hello li{counter-increment:s;display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start;font-size:14px;color:var(--muted)}
-.hello li:before{content:counter(s);width:26px;height:26px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:600;font-size:13px}
-.hello li b{display:block;color:var(--text);font-weight:600}
-.src{margin-top:32px;font-size:12.5px;color:var(--faint);max-width:90ch;line-height:1.7}
-/* 弹层：移动端底部抽屉 */
-dialog{border:1px solid var(--line);border-radius:var(--r-panel);padding:0;width:min(440px,92vw);background:var(--surface);color:var(--text);box-shadow:var(--shadow-soft),0 32px 64px -28px #0b1a1450}
-dialog::backdrop{background:#1a221e66}
-#dform{padding:24px}#dform h3{font-size:19px;margin-bottom:8px}
-.f{display:grid;gap:6px;margin-top:14px}.f span{font-size:13.5px;font-weight:500;color:var(--muted)}
-.f input,.f select{min-height:44px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--bg);padding:0 12px;width:100%}
+.hello{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:32px;align-items:center;padding:32px}
+.hello h1{font-size:32px;line-height:1.2;font-weight:500}
+.hello p{margin-top:12px;max-width:36ch;color:var(--secondary)}
+.hello .acts{display:flex;gap:8px;margin-top:24px;flex-wrap:wrap}
+.hello ol{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:16px}
+.hello li{counter-increment:s;display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;align-items:start;font-size:14px;color:var(--secondary);line-height:1.5}
+.hello li:before{content:counter(s);width:28px;height:28px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--raised);color:var(--text);display:grid;place-items:center;font-weight:500;font-size:13px}
+.hello li b{display:block;color:var(--text);font-weight:500}
+.src{margin-top:32px;font-size:12px;color:var(--muted);max-width:90ch;line-height:1.6}
+dialog{border:1px solid var(--line);border-radius:var(--r-card);padding:0;width:min(440px,calc(100vw - 32px));background:var(--surface);color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.06)}
+dialog::backdrop{background:rgba(23,23,23,.4)}
+#dform{padding:24px}#dform h3{font-size:20px;font-weight:500;margin-bottom:8px}
+.f{display:grid;gap:8px;margin-top:16px}.f span{font-size:13px;font-weight:500;color:var(--secondary)}
+.f input,.f select{min-height:44px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--bg);padding:0 12px;width:100%;font-size:16px}
 .f input:focus,.f select:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
-.d-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}
-.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:3;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:var(--r-ctl);font-size:14px;opacity:0;pointer-events:none;transition:opacity .25s}
+.d-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:3;background:var(--text);color:var(--bg);padding:12px 16px;border-radius:var(--r-ctl);font-size:14px;line-height:1.4;opacity:0;pointer-events:none;transition:opacity 160ms var(--ease);max-width:min(420px,calc(100vw - 32px))}
 .toast.on{opacity:1}
 .err{color:var(--late)}
-@media (max-width:860px){.cols,.hello{grid-template-columns:1fr}.hello{padding:24px}.bento-stats{grid-template-columns:1fr}}
+@media (prefers-color-scheme:dark){
+ .btn.p{background:var(--text);border-color:var(--text);color:var(--bg)}
+ .btn.p:hover{background:#ffffff;border-color:#ffffff;color:#141415}
+ .panel,.dialog{box-shadow:none}
+ dialog{box-shadow:none}
+}
+@media (max-width:859px){.cols,.hello{grid-template-columns:1fr}.hello{padding:24px}}
 @media (max-width:767px){
- .top-in{padding:0 14px;gap:8px}.brand small{display:none}.sync{max-width:none;width:100%;order:3;justify-content:flex-start;margin-left:0;padding-top:4px}.wrap{padding:14px 14px 48px}
- .panel{padding:16px}.next{padding:20px;grid-template-columns:1fr}.next .when{font-size:44px;border-right:0;padding:0 0 12px;border-bottom:1px solid color-mix(in srgb,var(--accent-ink) 30%,transparent);margin-bottom:8px}
- .hello h1{font-size:26px}.v{grid-template-columns:1fr}.v .act{grid-row:auto;grid-column:1;justify-self:start;margin-top:6px}
- dialog{width:100vw;max-width:100vw;margin:auto 0 0;border-radius:var(--r-panel) var(--r-panel) 0 0}
- #dform{padding:20px 18px calc(20px + env(safe-area-inset-bottom))}.d-acts .btn{flex:1;justify-content:center}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}#spPlan.sp-open .sp-plan-body{transition:none}.prog-fill{transition:none!important}}
+ .top-in{padding:8px 16px;gap:8px}
+ .brand small{display:none}
+ .sync{max-width:none;width:100%;order:3;justify-content:flex-start;margin-left:0}
+ .picker{flex:1;min-width:0}
+ .picker select{flex:1;width:100%;max-width:none;min-width:0}
+ .wrap{padding:16px 16px calc(48px + env(safe-area-inset-bottom))}
+ .panel{padding:16px}
+ .next{padding:20px;gap:16px}
+ .hello{padding:20px}
+ .hello h1{font-size:28px}
+ .v{grid-template-columns:1fr}
+ .v .act{grid-row:auto;grid-column:1;justify-content:flex-start}
+ dialog{width:100vw;max-width:100vw;margin:auto 0 0;border-radius:16px 16px 0 0;max-height:calc(100dvh - 24px - env(safe-area-inset-top))}
+ #dform{padding:20px 16px calc(20px + env(safe-area-inset-bottom))}
+ .d-acts .btn{flex:1}
+}
+@media (max-width:389px){
+ .next{grid-template-columns:1fr;justify-items:start}
+ .next .acts{grid-column:1}
+}
+@media (prefers-reduced-motion:reduce){
+ *{transition:none!important;scroll-behavior:auto!important}
+ .btn:active{transform:none}
+}
 </style></head><body>
-<header class="top"><div class="top-in"><div class="brand">接种簿<small>中国儿童疫苗记录</small></div>
+<header class="top"><div class="top-in"><div class="brand"><img class="mark" src="icons/favicon-64.png" alt="" width="24" height="24"><span>接种簿<small>中国儿童疫苗记录</small></span></div>
 <div class="sync" id="syncBar"><span class="dot off" id="syncDot" aria-hidden="true"></span><span id="syncText">远端存储 · 请先登录</span><button class="btn sm" type="button" id="syncBtn" onclick="syncAction()">登录</button></div>
 <div class="picker"><select id="childSel" aria-label="选择孩子"></select><button class="btn sm" onclick="editChild()" aria-label="添加孩子">添加</button></div></div></header>
 <main class="wrap">
@@ -590,7 +619,7 @@ function setSyncStatus(st,msg){syncStatus=st;const dot=$('syncDot'),tx=$('syncTe
 function renderSyncBar(){
  const btn=$('syncBtn');if(!btn)return;
  if(authSession){btn.textContent='退出';btn.classList.remove('p');$('syncText').innerHTML=`<span class="em" title="${esc(authSession.user.email||'')}">${esc(authSession.user.email||'已登录')}</span> · ${syncStatus==='busy'?'云端处理中…':!navigator.onLine?'离线，不能保存':syncStatus==='ok'?'已保存到云端':syncStatus==='err'?'云端请求失败':navigator.onLine?'待读取':'离线'}`}
- else{btn.textContent='登录';btn.classList.add('p');setSyncStatus('off','远端存储 · 请先登录')}
+ else{btn.textContent='登录';btn.classList.remove('p');setSyncStatus('off','远端存储 · 请先登录')}
 }
 async function sbFetch(path,opts={}){const h=opts.headers||{};h.apikey=sb().key;if(authSession?.access_token)h.Authorization='Bearer '+authSession.access_token;if(opts.body&&!h['Content-Type'])h['Content-Type']='application/json';const r=await fetch(sb().url+path,{...opts,headers:h,cache:'no-store'});return r}
 async function ensureFreshToken(){if(!authSession||!VT.needsTokenRefresh(authSession))return authSession;const epoch=authEpoch;
@@ -614,10 +643,10 @@ async function initAuth(){authSession=await consumeAuthHash()||loadSession();ren
 function syncAction(){if(authSession){if(syncBusy)return toast('正在保存，请稍候');if(confirm('退出登录？退出后本页不再显示孩子资料和记录。')){authEpoch++;authSession=null;cloudReady=false;applyState(emptyState());persistSession(null);setSyncStatus('off');render();toast('已退出')}}else openLogin()}
 function openLogin(){dialog(`<h3>邮箱登录 / 远端记录</h3><p class="muted">登录后从云端读取记录，所有修改仅保存到云端。未登录或离线时不能添加、修改或导入记录。</p>
 <label class="f"><span>邮箱</span><input type="email" name="email" required autocomplete="email" placeholder="you@example.com"></label>
-<button class="btn p" type="button" style="width:100%;margin-top:14px" onclick="sendMagicLink(this)">发送登录链接</button>
+<button class="btn p" type="button" style="width:100%;margin-top:16px" onclick="sendMagicLink(this)">发送登录链接</button>
 <p id="loginStatus" class="muted" role="status" aria-live="polite"></p>
 <p class="faint" style="margin:16px 0 8px">或输入邮件中的 6 位验证码</p>
-<label class="f"><span>验证码</span><input name="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="123456"></label>
+<label class="f"><span>验证码</span><input name="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6 位数字"></label>
 <button class="btn" type="button" style="width:100%;margin-top:8px" onclick="verifyOtp(this)">确认验证码</button>`,null,'关闭')}
 async function sendMagicLink(btn){const f=$('dform'),email=(new FormData(f)).get('email');if(!email)return;btn.disabled=true;
  const status=$('loginStatus');status.textContent='正在发送…';
@@ -663,9 +692,9 @@ function renderInner(){
  $('tabs').hidden=!c;
  $('tabs').innerHTML=[['dash','概览'],['all','全部疫苗'],['tl','时间轴'],['rec','接种记录']].map(([k,n])=>`<button class="${tab===k?'on':''}" aria-current="${tab===k?'page':'false'}" onclick="tab='${k}';render()">${n}</button>`).join('');
  $('src').innerHTML='数据来源：'+esc(VT.SOURCE)+' 标注“以说明书为准”的自费疫苗程序因产品而异。';
- if(!ready){$('tabs').hidden=true;$('main').innerHTML=`<section class="panel hello"><h1>${authSession?'读取云端记录':'欢迎使用接种簿'}</h1><p>${authSession?'读取成功后即可查看和修改。读取失败时请检查网络后重试。':'请先邮箱登录，孩子资料和接种记录仅保存在云端。'}</p><button class="btn p" onclick="${authSession?'reconcileAfterLogin()':'openLogin()'}">${authSession?'重新读取':'登录'}</button></section>`}
+ if(!ready){$('tabs').hidden=true;$('main').innerHTML=`<section class="panel hello"><div><h1>${authSession?'读取云端记录':'接种记录在云端'}</h1><p>${authSession?'读取成功后即可查看和修改。读取失败时请检查网络后重试。':'请先邮箱登录，孩子资料和接种记录仅保存在云端。'}</p><div class="acts"><button class="btn p" onclick="${authSession?'reconcileAfterLogin()':'openLogin()'}">${authSession?'重新读取':'登录'}</button></div></div></section>`}
  if(!ready)return;
- if(!c){$('main').innerHTML=`<section class="panel hello"><div><h1>欢迎使用接种簿</h1><p>填写孩子的出生日期，即可看到免费和自费疫苗计划，并按已打记录推算下一针。</p>
+ if(!c){$('main').innerHTML=`<section class="panel hello"><div><h1>先添加一个孩子</h1><p>填写孩子的出生日期，即可看到免费和自费疫苗计划，并按已打记录推算下一针。</p>
   <div class="acts"><button class="btn p" id="addFirst" onclick="editChild()">添加第一个孩子</button><button class="btn" onclick="$('imp').click()">导入备份</button></div></div>
   <ol><li><span><b>添加孩子</b>姓名、出生日期、性别</span></li><li><span><b>记录已打的针</b>日期、批号、门诊都可以记</span></li><li><span><b>看下一针</b>按最小间隔和推荐月龄自动推算，逾期会提示补种原则</span></li></ol></section>`;return}
  const plan=VT.seriesPlan(c,today());
@@ -696,10 +725,10 @@ function renderInner(){
   ${s.status==='overdue'&&s.catchupNote?`<div class="tip">补种原则：${esc(s.catchupNote)}</div>`:''}</div>`;
  const spCatalog=VT.selfPaidCatalog(c);
  const spSum=spPlanSummary(c,spCatalog);
- const spPanel=`<section class="panel sp-plan${spPlanOpen?' sp-open':''}" id="spPlan"><button type="button" class="sp-plan-h" onclick="toggleSpPlan()" aria-expanded="${spPlanOpen?'true':'false'}" aria-controls="spPlanBody"><h3>自费疫苗计划</h3><span class="sp-plan-sum">${esc(spSum)}</span><span class="sp-chev" aria-hidden="true">›</span></button>
+ const spPanel=`<section class="panel sp-plan${spPlanOpen?' sp-open':''}" id="spPlan"><button type="button" class="sp-plan-h" onclick="toggleSpPlan()" aria-expanded="${spPlanOpen?'true':'false'}" aria-controls="spPlanBody"><h3>自费疫苗计划</h3><span class="sp-plan-sum">${esc(spSum)}</span><span class="sp-chev" aria-hidden="true"></span></button>
   <div id="spPlanBody" class="sp-plan-body"><div class="opts">${spCatalog.map(v=>{const on=VT.isSelected(c,v),rec=(c.records||[]).some(r=>r.vid===v.id);return `<label class="opt ${on?'on':''}"><input type="checkbox" data-sp="${v.id}" ${on?'checked':''} onchange="toggleSP('${v.id}',this.checked)"><span>${esc(v.name)}${rec?'<small>已有接种记录</small>':v.excl?'<small>轮状疫苗二选一</small>':''}</span></label>`}).join('')}</div>
-  <p class="faint" style="margin-top:10px">勾选后纳入下一针提醒。流感未勾选时，仍可在上方流感卡片或「全部疫苗」中直接记录接种。选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。曼海欣(MCV4)程序依首剂年龄而定，可按《2026年版免疫程序》替代相应免费流脑剂次（详见疫苗说明）。取消勾选后不再提醒，但已有接种记录仍会显示。</p></div></section>`;
- const actBlock=`<div class="act-block"><div class="act-row primary"><button class="btn sm p" onclick="editChild(cur())">编辑资料</button><button class="btn sm" onclick="exportICS()">导出日历</button></div>
+  <p class="faint" style="margin-top:12px">勾选后纳入下一针提醒。流感未勾选时，仍可在上方流感卡片或「全部疫苗」中直接记录接种。选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。曼海欣(MCV4)程序依首剂年龄而定，可按《2026年版免疫程序》替代相应免费流脑剂次（详见疫苗说明）。取消勾选后不再提醒，但已有接种记录仍会显示。</p></div></section>`;
+ const actBlock=`<div class="act-block"><div class="act-row primary"><button class="btn sm" onclick="editChild(cur())">编辑资料</button><button class="btn sm" onclick="exportICS()">导出日历</button></div>
   <details class="act-data"><summary>备份与档案</summary><div class="act-row secondary"><button class="btn sm" onclick="exportChildJSON()">导出档案</button><button class="btn sm" onclick="exportJSON()">导出备份</button><button class="btn sm" onclick="$('imp').click()">导入备份</button></div></details>
   <button class="btn sm link danger act-del" type="button" onclick="delChild()">删除孩子</button></div>`;
  const statRow=s=>s.nip||s.selected;
@@ -707,10 +736,8 @@ function renderInner(){
  let h='';
  if(tab==='dash'){const up=VT.upcoming(c,today()),n=up.find(s=>s.dueKind!=='earliest'),earliest=up.find(s=>s.dueKind==='earliest'),T=today();
   const fluPlan=plan.find(s=>s.id==='flu'),fluEntry=fluPlan&&!fluPlan.selected?`<div id="fluEntry">${row(fluPlan)}</div>`:'';
-  const hero=n?`<section class="panel next bento-tile bento-hero ${n.status==='overdue'?'late':''}" aria-label="下一针"><div class="when">${n.status==='overdue'?'尽快补种':md(n.due)}<small>${n.status==='overdue'?'已过推荐时间':rel(n.due)}</small></div><div class="what"><h2>下一针：${esc(n.name)}</h2><p>${esc(n.nextLabel)}${!n.nip?' <span class="chip k-self">自费</span>':''}${n.status==='overdue'?'。补种前请先咨询接种门诊':''}</p>${n.id==='flu'?'<p>这是建议接种时间，不是门诊预约。本站不会自动推送或代为预约。</p>':''}</div>
-   <div class="acts"><button class="btn p" onclick="addRec('${n.id}')">记录接种</button><button class="btn ghost" onclick="exportICS()">导出日历</button></div></section>`:earliest?`<section class="panel next bento-tile bento-hero" id="fluWait" aria-label="流感最早日期"><div class="when">最早<small>不是预约</small></div><div class="what"><h2>流感第2剂最早 ${md(earliest.due)}</h2><p>与上一剂间隔至少4周。请在实际接种后再记录。本站不会自动预约或推送。</p></div>
-   <div class="acts"><button class="btn p" onclick="addRec('flu')">记录接种</button></div></section>`:`<section class="panel next bento-tile bento-hero"><div class="what"><h2>当前没有待接种提醒</h2><p class="muted">可在下方勾选自费疫苗，或在「全部疫苗」中查看进度。</p></div></section>`;
-  const stats=`<div class="bento-stats" aria-label="接种概况"><div class="panel stat-tile late stat-late"><b>${cnt('overdue')}</b><span>疫苗逾期</span></div><div class="panel stat-tile soon stat-soon"><b>${cnt('soon')}</b><span>30 天内到期</span></div><div class="panel stat-tile done stat-done"><b>${cnt('done')}</b><span>计划内已完成</span></div></div>`;
+  const hero=n?`<section class="panel next bento-tile bento-hero ${n.status==='overdue'?'late':''}" aria-label="下一针"><div class="when stamp">${n.status==='overdue'?'尽快补种':md(n.due)}<small>${n.status==='overdue'?'已过推荐时间':rel(n.due)}</small></div><div class="what"><h2>下一针：${esc(n.name)}</h2><p>${esc(n.nextLabel)}${!n.nip?' <span class="chip k-self">自费</span>':''}${n.status==='overdue'?'。补种前请先咨询接种门诊':''}</p>${n.id==='flu'?'<p>这是建议接种时间，不是门诊预约。本站不会自动推送或代为预约。</p>':''}<div class="acts"><button class="btn p" onclick="addRec('${n.id}')">记录接种</button><button class="btn ghost" onclick="exportICS()">导出日历</button></div></div></section>`:earliest?`<section class="panel next bento-tile bento-hero" id="fluWait" aria-label="流感最早日期"><div class="when stamp">最早<small>不是预约</small></div><div class="what"><h2>流感第2剂最早 ${md(earliest.due)}</h2><p>与上一剂间隔至少4周。请在实际接种后再记录。本站不会自动预约或推送。</p><div class="acts"><button class="btn p" onclick="addRec('flu')">记录接种</button></div></div></section>`:`<section class="panel next bento-tile bento-hero"><div class="what"><h2>当前没有待接种提醒</h2><p class="muted">可在下方勾选自费疫苗，或在「全部疫苗」中查看进度。</p></div></section>`;
+  const stats=`<div class="panel bento-stats" aria-label="接种概况"><div class="stat late"><b>${cnt('overdue')}</b><span>疫苗逾期</span></div><div class="stat"><b>${cnt('soon')}</b><span>30 天内到期</span></div><div class="stat"><b>${cnt('done')}</b><span>计划内已完成</span></div></div>`;
   const nipProg=doseProg(plan,true),spProg=doseProg(plan,false);
   const progPanel=`<section class="panel bento-tile bento-prog" aria-label="接种进度"><div class="sec-h"><h3>接种进度</h3><span class="faint">按剂次统计</span></div>${progBlock('免疫规划',nipProg,'','暂无')}${progBlock('自费（已选或已有记录）',spProg,'sp','未选择')}</section>`;
   const recent=(c.records||[]).slice().sort((a,b)=>a.date<b.date?1:-1).slice(0,4);
@@ -726,10 +753,10 @@ function renderInner(){
   h=`<div class="bento">${hero}${stats}${rail}<section class="panel bento-tile bento-up" id="upNip"><div class="sec-h"><h3>待接种</h3><span class="faint">免疫规划与已选自费，按日期排序</span></div>${fluEntry}${upInner}</section>
   ${spPanel.replace('class="panel sp-plan','class="panel bento-tile bento-sp sp-plan')}</div>`;}
  if(tab==='all'){h=`<div class="cols"><section class="panel"><div class="sec-h"><h3>免疫规划疫苗</h3><span class="faint">免费</span></div>${plan.filter(s=>s.nip).map(row).join('')}</section>
-  <section class="panel"><div class="sec-h"><h3>非免疫规划疫苗</h3><span class="faint">自费、自愿</span></div>${plan.filter(s=>!s.nip&&(s.selected||s.given>0||s.id==='flu')).map(row).join('')||'<p class="muted">尚未选择自费疫苗，可在概览页「自费疫苗计划」中勾选。</p>'}<p class="faint" style="margin-top:10px">记录五联疫苗(DTaP-IPV/Hib)后，对应剂次的百白破、脊灰、Hib 会自动计为已完成。2026 年版免疫规划为 13 周岁女孩免费接种 2 剂双价 HPV；自费四价、九价以说明书为准。流感未勾选计划时也可直接记录接种。</p></section></div>`;}
+  <section class="panel"><div class="sec-h"><h3>非免疫规划疫苗</h3><span class="faint">自费、自愿</span></div>${plan.filter(s=>!s.nip&&(s.selected||s.given>0||s.id==='flu')).map(row).join('')||'<p class="muted">尚未选择自费疫苗，可在概览页「自费疫苗计划」中勾选。</p>'}<p class="faint" style="margin-top:12px">记录五联疫苗(DTaP-IPV/Hib)后，对应剂次的百白破、脊灰、Hib 会自动计为已完成。2026 年版免疫规划为 13 周岁女孩免费接种 2 剂双价 HPV；自费四价、九价以说明书为准。流感未勾选计划时也可直接记录接种。</p></section></div>`;}
  if(tab==='tl'){const recs=c.records||[];let last='';h='<section class="panel"><div class="tl">';VT.timeline(c,today()).forEach(t=>{const a=t.age,lab=t.ageLabel||(a.y?a.y+'岁'+(a.m?a.m+'个月':''):a.m?a.m+'月龄':a.w?a.w+'周龄':'出生时');if(lab!==last){h+=`<div class="age">${lab}<span class="faint">${t.date}</span></div>`;last=lab}
-  if(t.vid==='flu'){const note=t.done?`已于 ${t.date} 接种`:t.dueKind==='earliest'?`最早 ${t.date}（间隔至少4周，不是预约）`:t.seasonDone?`下一季建议 ${t.date} 起（不是预约）`:`建议 ${t.date} 起（不是预约）`;h+=`<div class="row ${t.done?'ok':''}" data-flu="1"><span class="mk">${t.done?'✓':'○'}</span><span>${esc(t.name)}，${esc(t.label)}<span class="chip k-self">自费</span> <span class="faint">${esc(note)}。本站不会自动预约或推送。</span></span>${t.done?'':`<button class="btn sm" type="button" onclick="addRec('flu')">记录接种</button>`}</div>`;return}
-  const r=recs.filter(x=>x.vid===t.vid).sort((x,y)=>x.date<y.date?-1:1)[t.dose];h+=`<div class="row ${r?'ok':''}"><span class="mk">${r?'✓':'○'}</span><span>${esc(t.name)}，${esc(t.label)}${t.nip?'':'<span class="chip k-self">自费</span>'}${r?` <span class="faint">已于 ${r.date} 接种</span>`:''}</span></div>`});h+='</div></section>';}
+  if(t.vid==='flu'){const note=t.done?`已于 ${t.date} 接种`:t.dueKind==='earliest'?`最早 ${t.date}（间隔至少4周，不是预约）`:t.seasonDone?`下一季建议 ${t.date} 起（不是预约）`:`建议 ${t.date} 起（不是预约）`;h+=`<div class="row ${t.done?'ok':''}" data-flu="1"><span class="mk"><i class="mk-i${t.done?' done':''}" aria-hidden="true"></i></span><span>${esc(t.name)}，${esc(t.label)}<span class="chip k-self">自费</span> <span class="faint">${esc(note)}。本站不会自动预约或推送。</span></span>${t.done?'':`<button class="btn sm" type="button" onclick="addRec('flu')">记录接种</button>`}</div>`;return}
+  const r=recs.filter(x=>x.vid===t.vid).sort((x,y)=>x.date<y.date?-1:1)[t.dose];h+=`<div class="row ${r?'ok':''}"><span class="mk"><i class="mk-i${r?' done':''}" aria-hidden="true"></i></span><span>${esc(t.name)}，${esc(t.label)}${t.nip?'':'<span class="chip k-self">自费</span>'}${r?` <span class="faint">已于 ${r.date} 接种</span>`:''}</span></div>`});h+='</div></section>';}
  if(tab==='rec'){const fluLabels=VT.fluHistoryLabels(c);const recs=(c.records||[]).map((r,i)=>({...r,i})).sort((a,b)=>a.date<b.date?1:-1);h=`<section class="panel"><div class="sec-h"><h3>接种记录</h3><span class="faint">${recs.length} 条</span><span style="flex:1"></span><button class="btn p sm" onclick="addRec()">添加记录</button></div>${recs.map(r=>{const v=VT.VACCINES.find(v=>v.id===r.vid);const dose=r.vid==='flu'&&fluLabels[r.i]?`，${esc(fluLabels[r.i])}`:'';return `<div class="v"><div><span class="n">${esc(v?v.name:r.vid)}</span></div><div class="meta">${r.date}${dose}${r.batch?`，批号 ${esc(r.batch)}`:''}${r.note?`，${esc(r.note)}`:''}</div><div class="act"><button class="btn sm link" onclick="addRec(null,${r.i})">编辑</button><button class="btn sm link danger" onclick="delRec(${r.i})">删除</button></div></div>`}).join('')||'<p class="muted" style="padding:12px 0">还没有记录。打过的针可以在这里补录。</p>'}</section>`;}
  $('main').innerHTML=h;}
 function dialog(html,onok,okText){const epoch=authEpoch;$('dform').innerHTML=html+'<div class="d-acts"><button class="btn" value="c" formnovalidate>取消</button><button class="btn p" value="ok">'+esc(okText||'保存')+'</button></div>';$('dlg').showModal();$('dlg').onclose=()=>{if($('dlg').returnValue==='ok'&&onok&&epoch===authEpoch)onok(new FormData($('dform')))};return $('dform')}
