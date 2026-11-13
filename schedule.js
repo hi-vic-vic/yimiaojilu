@@ -246,7 +246,7 @@ function normalizeAppState(d){
  if(!d||typeof d!=='object'||!Array.isArray(d.children))return null;
  const cur=d.cur!=null&&d.children.some(c=>c&&c.id===d.cur)?d.cur:(d.children[0]?.id??null);
  const state=JSON.parse(JSON.stringify({children:d.children,cur}));
- state.children.forEach(normalizeChildSelfPaid);
+ state.children.forEach(c=>{normalizeChildSelfPaid(c);normalizeChildAvatar(c)});
  return state;
 }
 function appStateFingerprint(d){const n=normalizeAppState(d);return n?JSON.stringify(n):'';}
@@ -280,6 +280,12 @@ function exportDoseSlug(vid){return DOSE_SLUG_EXPORT[vid]||vid;}
 function importDoseSlug(slug){return DOSE_SLUG_IMPORT[slug]||slug;}
 function normalizeImportSex(s){const x=String(s||'').toLowerCase();if(x==='f'||x==='girl'||x==='女')return 'F';return 'M';}
 function exportProfileSex(sex){return sex==='F'?'girl':'boy';}
+const AVATAR_SIZE=256,AVATAR_MAX_BYTES=30*1024;
+function avatarInitial(name){const s=String(name||'').trim();return s?Array.from(s)[0]:'孩';}
+function avatarCrop(w,h){w=Math.round(+w||0);h=Math.round(+h||0);const side=Math.min(w,h);if(!(side>0))return null;return{sx:Math.floor((w-side)/2),sy:Math.floor((h-side)/2),sw:side,sh:side,dw:AVATAR_SIZE,dh:AVATAR_SIZE};}
+function avatarByteLength(url){const m=String(url||'').match(/^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/);if(!m)return 0;const b64=m[1],pad=b64.endsWith('==')?2:b64.endsWith('=')?1:0;return b64.length*3/4-pad;}
+function normalizeAvatar(url){const n=avatarByteLength(url);return n&&n<=AVATAR_MAX_BYTES?String(url):'';}
+function normalizeChildAvatar(child){if(!child)return;const avatar=normalizeAvatar(child.avatar);if(avatar)child.avatar=avatar;else delete child.avatar;}
 function isValidRecordDate(s){if(!/^\d{4}-\d{2}-\d{2}$/.test(String(s||'')))return false;try{return fmt(parse(s))===s}catch(e){return false}}
 function vaccineById(vid){return V.find(x=>x.id===vid);}
 function parseDoseKey(key){
@@ -293,6 +299,7 @@ function convertSingleChildExport(raw){
  const p=raw.profile;if(!p.birth||!isValidRecordDate(p.birth))return{ok:false,error:'bad_profile'};
  const child={id:p.id||('c'+Date.now()),name:p.name||'未命名',birth:p.birth,sex:normalizeImportSex(p.sex),records:[],selfPaid:{}};
  if(p.je||p.hepa)child.meta={je:p.je,hepa:p.hepa};
+ const avatar=normalizeAvatar(p.avatar);if(avatar)child.avatar=avatar;
  let imported=0,skipped=0;const warnings=[];
  (Array.isArray(p.addons)?p.addons:[]).forEach(a=>{const vid=ADDON_IMPORT[a];if(vid&&vaccineById(vid))child.selfPaid[vid]=true;else warnings.push('未知自费项：'+a);});
  for(const [key,rec] of Object.entries(raw.records||{})){
@@ -308,6 +315,7 @@ function exportSingleChild(child){
  Object.keys(ADDON_EXPORT).forEach(vid=>{if(sp[vid]===true)addons.push(ADDON_EXPORT[vid]);});
  const meta=child.meta||{};
  const profile={name:child.name,birth:child.birth,sex:exportProfileSex(child.sex),je:meta.je||'live',hepa:meta.hepa||'live',id:child.id,addons:[...new Set(addons)]};
+ const avatar=normalizeAvatar(child.avatar);if(avatar)profile.avatar=avatar;
  const records={};const byVid={};
  (child.records||[]).forEach(r=>{(byVid[r.vid]=byVid[r.vid]||[]).push(r);});
  Object.keys(byVid).forEach(vid=>{byVid[vid].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
@@ -321,12 +329,15 @@ function detectImportFormat(raw){
  return{kind:'unknown'};
 }
 function mergeChildRecords(existing,incoming,mode){
- if(mode==='replace')return JSON.parse(JSON.stringify({...incoming,id:existing.id}));
+ if(mode==='replace'){const copy=JSON.parse(JSON.stringify({...incoming,id:existing.id}));normalizeChildAvatar(copy);return copy;}
  const recs=(existing.records||[]).slice();
  (incoming.records||[]).forEach(r=>{if(!recs.some(x=>x.vid===r.vid&&x.date===r.date))recs.push({...r});});
  recs.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
  const selfPaid={...(existing.selfPaid||{}),...(incoming.selfPaid||{})};
- return{...existing,name:incoming.name||existing.name,birth:incoming.birth||existing.birth,sex:incoming.sex||existing.sex,records:recs,selfPaid,meta:incoming.meta||existing.meta};
+ const merged={...existing,name:incoming.name||existing.name,birth:incoming.birth||existing.birth,sex:incoming.sex||existing.sex,records:recs,selfPaid,meta:incoming.meta||existing.meta};
+ const incomingAvatar=normalizeAvatar(incoming.avatar);
+ if(incomingAvatar)merged.avatar=incomingAvatar;else if(normalizeAvatar(existing.avatar))merged.avatar=normalizeAvatar(existing.avatar);else delete merged.avatar;
+ return merged;
 }
 function importIntoState(state,raw,onConflict){
  const fmt0=detectImportFormat(raw);let st=normalizeAppState(state)||{children:[],cur:null};
@@ -355,6 +366,7 @@ function importIntoState(state,raw,onConflict){
 const API={isSelected,selfPaidCatalog,normalizeChildSelfPaid,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
  SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh,
  ADDON_IMPORT,ADDON_EXPORT,convertSingleChildExport,exportSingleChild,detectImportFormat,mergeChildRecords,importIntoState,isValidRecordDate,parseDoseKey,
+ AVATAR_SIZE,AVATAR_MAX_BYTES,avatarInitial,avatarCrop,avatarByteLength,normalizeAvatar,
  ageInMonths,mcv4BandFromMonths,mcv4BandFirst,mcv4Spec,mcv4Series,applyMcv4NationalCoverage,fluSeries,fluHistoryLabels,validateFluRecord,describeFluDose};
 if(typeof module!=='undefined')module.exports=API;else root.VT=API;
 })(this);

@@ -135,6 +135,14 @@ button,a,label,.opt{touch-action:manipulation;-webkit-tap-highlight-color:transp
 #spPlan.sp-open .sp-plan-body{display:block}
 .who h2{font-size:22px;font-weight:500}
 .who p{margin-top:4px}
+.avatar{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--raised);color:var(--text);display:inline-flex;align-items:center;justify-content:center;overflow:hidden;flex:none;font-size:18px;font-weight:500;line-height:1}
+.avatar-lg{width:72px;height:72px;font-size:28px}
+.avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.who-head{display:flex;align-items:center;gap:16px;min-width:0}
+.who-head>div{min-width:0}
+.avatar-field{display:flex;align-items:center;gap:12px;margin-top:8px}
+.avatar-actions{display:flex;flex-wrap:wrap;gap:8px}
+.who .avatar-actions{margin-top:12px}
 .act-block{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
 .act-row{display:flex;flex-wrap:wrap;gap:8px}
 .act-row.primary .btn.p{flex:1;min-width:8rem;justify-content:center}
@@ -144,7 +152,6 @@ button,a,label,.opt{touch-action:manipulation;-webkit-tap-highlight-color:transp
 .act-data summary:after{content:"";width:8px;height:8px;margin-left:auto;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(-45deg);transition:transform 160ms var(--ease)}
 .act-data[open] summary:after{transform:rotate(45deg)}
 .act-data .act-row{margin:0 0 8px}
-.act-del{align-self:flex-start}
 .prog-block+.prog-block{margin-top:16px}
 .prog-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px;font-weight:500;margin-bottom:8px}
 .prog-track{height:8px;border-radius:4px;background:var(--raised);overflow:hidden}
@@ -223,7 +230,7 @@ dialog::backdrop{background:rgba(23,23,23,.4)}
 </style></head><body>
 <header class="top"><div class="top-in"><div class="brand"><img class="mark" src="icons/favicon-64.png" alt="" width="24" height="24"><span>接种簿<small>中国儿童疫苗记录</small></span></div>
 <div class="sync" id="syncBar"><span class="dot off" id="syncDot" aria-hidden="true"></span><span id="syncText">远端存储 · 请先登录</span><button class="btn sm" type="button" id="syncBtn" onclick="syncAction()">登录</button></div>
-<div class="picker"><select id="childSel" aria-label="选择孩子"></select><button class="btn sm" onclick="editChild()" aria-label="添加孩子">添加</button></div></div></header>
+<div class="picker"><span class="avatar" id="childAvatar" hidden aria-hidden="true"></span><select id="childSel" aria-label="选择孩子"></select><button class="btn sm" onclick="editChild()" aria-label="添加孩子">添加</button></div></div></header>
 <main class="wrap">
 <p class="notice" role="note"><b>仅供参考，不构成医疗建议。</b>接种时间、补种和疫苗选择请以当地接种门诊、医生意见及疫苗说明书为准。</p>
 <p class="notice info">孩子资料和接种记录仅保存在云端，登录并联网后才能读取和修改。</p>
@@ -231,6 +238,7 @@ dialog::backdrop{background:rgba(23,23,23,.4)}
 <div id="main"></div>
 <p class="src" id="src"></p>
 <input id="imp" type="file" accept=".json,application/json" hidden onchange="importJSON(this)">
+<input id="avatarFile" type="file" accept="image/*" hidden aria-label="选择头像照片" onchange="onAvatarFile(this)">
 </main>
 <dialog id="dlg"><form method="dialog" id="dform"></form></dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -329,6 +337,7 @@ function renderInner(){
  $('childSel').innerHTML=S.children.map(c=>`<option value="${c.id}" ${c.id===S.cur?'selected':''}>${esc(c.name)}</option>`).join('')||'<option>还没有孩子</option>';
  $('childSel').onchange=e=>{const id=e.target.value;changeState(next=>{next.cur=id})};
  const c=cur();
+ paintChildAvatar(ready?c:null);
  $('tabs').hidden=!c;
  $('tabs').innerHTML=[['dash','概览'],['all','全部疫苗'],['tl','时间轴'],['rec','接种记录']].map(([k,n])=>`<button class="${tab===k?'on':''}" aria-current="${tab===k?'page':'false'}" onclick="tab='${k}';render()">${n}</button>`).join('');
  $('src').innerHTML='数据来源：'+esc(VT.SOURCE)+' 标注“以说明书为准”的自费疫苗程序因产品而异。';
@@ -336,7 +345,7 @@ function renderInner(){
  if(!ready)return;
  if(!c){$('main').innerHTML=`<section class="panel hello"><div><h1>先添加一个孩子</h1><p>填写孩子的出生日期，即可看到免费和自费疫苗计划，并按已打记录推算下一针。</p>
   <div class="acts"><button class="btn p" id="addFirst" onclick="editChild()">添加第一个孩子</button><button class="btn" onclick="$('imp').click()">导入备份</button></div></div>
-  <ol><li><span><b>添加孩子</b>姓名、出生日期、性别</span></li><li><span><b>记录已打的针</b>日期、批号、门诊都可以记</span></li><li><span><b>看下一针</b>按最小间隔和推荐月龄自动推算，逾期会提示补种原则</span></li></ol></section>`;return}
+  <ol><li><span><b>添加孩子</b>姓名、出生日期、性别，也可以上传头像</span></li><li><span><b>记录已打的针</b>日期、批号、门诊都可以记</span></li><li><span><b>看下一针</b>按最小间隔和推荐月龄自动推算，逾期会提示补种原则</span></li></ol></section>`;return}
  const plan=VT.seriesPlan(c,today());
  const chip=s=>s.later?`<span class="chip s-${s.status}">${ST[s.status]}</span><span class="chip s-covered">前4剂由五联覆盖</span>`:s.status==='covered'?`<span class="chip s-covered">由${esc(short(s.coveredBy))}覆盖</span>`:`<span class="chip s-${s.status}">${ST[s.status]}</span>`;
  const kind=s=>s.nip?'':'<span class="chip k-self">自费</span>';
@@ -369,8 +378,7 @@ function renderInner(){
   <div id="spPlanBody" class="sp-plan-body"><div class="opts">${spCatalog.map(v=>{const on=VT.isSelected(c,v),rec=(c.records||[]).some(r=>r.vid===v.id);return `<label class="opt ${on?'on':''}"><input type="checkbox" data-sp="${v.id}" ${on?'checked':''} onchange="toggleSP('${v.id}',this.checked)"><span>${esc(v.name)}${rec?'<small>已有接种记录</small>':v.excl?'<small>轮状疫苗二选一</small>':''}</span></label>`}).join('')}</div>
   <p class="faint" style="margin-top:12px">勾选后纳入下一针提醒。流感未勾选时，仍可在上方流感卡片或「全部疫苗」中直接记录接种。选择五联后，百白破前4剂、脊灰4剂和 Hib 由五联代替，不再单独提醒；6 周岁第5剂百白破仍需接种。曼海欣(MCV4)程序依首剂年龄而定，可按《2026年版免疫程序》替代相应免费流脑剂次（详见疫苗说明）。取消勾选后不再提醒，但已有接种记录仍会显示。</p></div></section>`;
  const actBlock=`<div class="act-block"><div class="act-row primary"><button class="btn sm" onclick="editChild(cur())">编辑资料</button><button class="btn sm" onclick="exportICS()">导出日历</button></div>
-  <details class="act-data"><summary>备份与档案</summary><div class="act-row secondary"><button class="btn sm" onclick="exportChildJSON()">导出档案</button><button class="btn sm" onclick="exportJSON()">导出备份</button><button class="btn sm" onclick="$('imp').click()">导入备份</button></div></details>
-  <button class="btn sm link danger act-del" type="button" onclick="delChild()">删除孩子</button></div>`;
+  <details class="act-data"><summary>备份与档案</summary><div class="act-row secondary"><button class="btn sm" onclick="exportChildJSON()">导出档案</button><button class="btn sm" onclick="exportJSON()">导出备份</button><button class="btn sm" onclick="$('imp').click()">导入备份</button></div></details></div>`;
  const statRow=s=>s.nip||s.selected;
  const cnt=k=>plan.filter(s=>statRow(s)&&s.status===k).length;
  let h='';
@@ -384,8 +392,10 @@ function renderInner(){
   const recentPanel=`<section class="panel bento-tile bento-recent" aria-label="近期已接种"><div class="sec-h"><h3>近期已接种</h3><span class="faint">最近 ${recent.length} 条</span></div>${recent.length?`<ul class="recent-list">${recent.map(r=>{const v=VT.VACCINES.find(x=>x.id===r.vid);return `<li><span class="nm">${esc(v?v.name:r.vid)}</span><span class="dt">${r.date}</span></li>`}).join('')}</ul>`:'<p class="muted">还没有接种记录。</p>'}</section>`;
   const ahead=up.filter(s=>{const d=days(s.due);return d>=0&&d<=92}).slice(0,5);
   const aheadPanel=`<section class="panel bento-tile bento-ahead" aria-label="未来三个月"><div class="sec-h"><h3>未来 3 个月</h3><span class="faint">待接种提醒</span></div>${ahead.length?`<ul class="ahead-list">${ahead.map(s=>`<li><span class="dt">${s.dueKind==='earliest'?'最早'+md(s.due):md(s.due)}</span><span class="nm">${esc(short(s.name))}${s.nip?'':' <span class="chip k-self">自费</span>'}</span><span class="sub">${s.dueKind==='earliest'?esc(s.nextLabel)+' · 间隔至少4周，不是预约':s.id==='flu'?esc(s.nextLabel)+' · '+rel(s.due)+'，不是预约':esc(s.nextLabel)+' · '+rel(s.due)}</span></li>`).join('')}</ul>`:'<p class="muted">这三个月内没有待接种提醒。</p>'}</section>`;
-  const whoPanel=`<aside class="panel bento-tile bento-who who"><h2>${esc(c.name)}</h2><p class="muted">${c.sex==='F'?'女孩':'男孩'}，${VT.ageText(c.birth,T)}<span class="faint">（${c.birth} 出生）</span></p>
-  <p class="faint" style="margin-top:8px">已录入 ${(c.records||[]).length} 条接种记录</p>${actBlock}</aside>`;
+  const hasAvatar=!!VT.normalizeAvatar(c.avatar);
+  const avatarBtns=`<div class="avatar-actions"><button class="btn sm" type="button" onclick="pickAvatar(cur().id)">${hasAvatar?'更换头像':'上传头像'}</button>${hasAvatar?'<button class="btn sm" type="button" onclick="clearAvatar(cur().id)">删除头像</button>':''}</div>`;
+  const whoPanel=`<aside class="panel bento-tile bento-who who"><div class="who-head"><span class="avatar avatar-lg" aria-hidden="true">${avatarInner(c)}</span><div><h2>${esc(c.name)}</h2><p class="muted">${c.sex==='F'?'女孩':'男孩'}，${VT.ageText(c.birth,T)}<span class="faint">（${c.birth} 出生）</span></p></div></div>
+  <p class="faint" style="margin-top:8px">已录入 ${(c.records||[]).length} 条接种记录</p>${avatarBtns}${actBlock}</aside>`;
   const rail=`<div class="bento-rail">${whoPanel}${progPanel}${recentPanel}${aheadPanel}</div>`;
   const coveredNote=(()=>{const cv=plan.filter(x=>x.status==='covered');return cv.length?`<div class="covered-note"><b>由${esc(short(cv[0].coveredBy))}覆盖，不单独提醒</b>${cv.map(x=>`<span class="chip s-covered">${esc(x.name.replace(/\(.*$/,''))}${x.laterDue?' 前4剂':''}</span>`).join('')}</div>`:''})();
   const upList=up.length?up.map(row).join(''):'<p class="muted">没有待接种的疫苗。</p>';
@@ -400,7 +410,60 @@ function renderInner(){
  if(tab==='rec'){const fluLabels=VT.fluHistoryLabels(c);const recs=(c.records||[]).map((r,i)=>({...r,i})).sort((a,b)=>a.date<b.date?1:-1);h=`<section class="panel"><div class="sec-h"><h3>接种记录</h3><span class="faint">${recs.length} 条</span><span style="flex:1"></span><button class="btn p sm" onclick="addRec()">添加记录</button></div>${recs.map(r=>{const v=VT.VACCINES.find(v=>v.id===r.vid);const dose=r.vid==='flu'&&fluLabels[r.i]?`，${esc(fluLabels[r.i])}`:'';return `<div class="v"><div><span class="n">${esc(v?v.name:r.vid)}</span></div><div class="meta">${r.date}${dose}${r.batch?`，批号 ${esc(r.batch)}`:''}${r.note?`，${esc(r.note)}`:''}</div><div class="act"><button class="btn sm link" onclick="addRec(null,${r.i})">编辑</button><button class="btn sm link danger" onclick="delRec(${r.i})">删除</button></div></div>`}).join('')||'<p class="muted" style="padding:12px 0">还没有记录。打过的针可以在这里补录。</p>'}</section>`;}
  $('main').innerHTML=h;}
 function dialog(html,onok,okText){const epoch=authEpoch;$('dform').innerHTML=html+'<div class="d-acts"><button class="btn" value="c" formnovalidate>取消</button><button class="btn p" value="ok">'+esc(okText||'保存')+'</button></div>';$('dlg').showModal();$('dlg').onclose=()=>{if($('dlg').returnValue==='ok'&&onok&&epoch===authEpoch)onok(new FormData($('dform')))};return $('dform')}
-function editChild(c){if(!canEdit())return;dialog(`<h3>${c?'编辑资料':'添加孩子'}</h3><label class="f"><span>姓名或小名</span><input name="name" required value="${esc(c?.name)}"></label><label class="f"><span>出生日期</span><input type="date" name="birth" required value="${c?.birth||''}"></label><label class="f"><span>性别</span><select name="sex"><option value="M">男孩</option><option value="F" ${c?.sex==='F'?'selected':''}>女孩</option></select></label>`,async f=>{const o={name:f.get('name'),birth:f.get('birth'),sex:f.get('sex')};if(!o.name||!o.birth)return;const ok=await changeState(next=>{if(c)Object.assign(next.children.find(x=>x.id===c.id),o);else{o.id='c'+Date.now();o.records=[];o.selfPaid={};next.children.push(o);next.cur=o.id;tab='dash'}});if(ok)toast(c?'已保存到云端':'已添加 '+o.name)},c?'保存修改':'添加孩子')}
+let avatarTarget=null,draftAvatar='',draftAvatarTouched=false,avatarBusy=false;
+function avatarInner(child){const url=VT.normalizeAvatar(child&&child.avatar);return url?`<img src="${url}" alt="">`:esc(VT.avatarInitial(child&&child.name));}
+function paintChildAvatar(child){const el=$('childAvatar');if(!el)return;if(!child){el.hidden=true;el.innerHTML='';return}el.hidden=false;el.innerHTML=avatarInner(child)}
+function paintDraftAvatar(name){const el=$('draftAvatar');if(!el)return;const url=VT.normalizeAvatar(draftAvatar);const typed=name!=null?name:($('dform')&&$('dform').elements.name?$('dform').elements.name.value:'');el.innerHTML=url?`<img src="${url}" alt="">`:esc(VT.avatarInitial(typed));const clr=$('draftAvatarClear'),pick=$('draftAvatarPick');if(clr)clr.hidden=!url;if(pick)pick.textContent=url?'更换头像':'上传头像'}
+function pickAvatar(target){if(!canEdit()||avatarBusy){if(avatarBusy)toast('正在处理照片，请稍候');return}avatarTarget=target;const input=$('avatarFile');input.value='';input.click()}
+async function decodeAvatarFile(file){
+ if(typeof createImageBitmap==='function'){
+  try{return await createImageBitmap(file,{imageOrientation:'from-image'})}catch(e){try{return await createImageBitmap(file)}catch(e2){}}
+ }
+ const url=URL.createObjectURL(file);let release=true;
+ try{
+  const img=await new Promise((resolve,reject)=>{const el=new Image();el.onload=()=>resolve(el);el.onerror=()=>reject(new Error('无法读取这张照片，请换成 JPG 或 PNG'));el.src=url});
+  if(typeof createImageBitmap==='function'){
+   try{return await createImageBitmap(img,{imageOrientation:'from-image'})}catch(e){try{return await createImageBitmap(img)}catch(e2){}}
+  }
+  release=false;img._avatarUrl=url;return img;
+ }finally{if(release)URL.revokeObjectURL(url)}
+}
+async function fileToAvatarDataUrl(file){
+ if(!file)throw new Error('请选择照片');
+ const bmp=await decodeAvatarFile(file);
+ try{
+  const w=bmp.width||bmp.naturalWidth,h=bmp.height||bmp.naturalHeight,crop=VT.avatarCrop(w,h);
+  if(!crop)throw new Error('无法读取这张照片，请换成 JPG 或 PNG');
+  const canvas=document.createElement('canvas');canvas.width=crop.dw;canvas.height=crop.dh;
+  const ctx=canvas.getContext('2d',{alpha:false});
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,crop.dw,crop.dh);
+  ctx.drawImage(bmp,crop.sx,crop.sy,crop.sw,crop.sh,0,0,crop.dw,crop.dh);
+  const max=VT.AVATAR_MAX_BYTES;let out='';
+  for(let q=0.86;q>=0.22;q=Math.round((q-0.08)*100)/100){
+   out=canvas.toDataURL('image/jpeg',q);
+   const n=VT.avatarByteLength(out);
+   if(n&&n<=max)return out;
+  }
+  throw new Error('照片仍然太大，请换一张');
+ }finally{if(bmp.close)bmp.close();if(bmp._avatarUrl)URL.revokeObjectURL(bmp._avatarUrl)}
+}
+async function onAvatarFile(input){
+ const file=input.files&&input.files[0];input.value='';const target=avatarTarget;if(!file||!target||!canEdit())return;
+ const save=$('dform')&&$('dform').querySelector('button.p');avatarBusy=true;if(save)save.disabled=true;
+ try{
+  const url=await fileToAvatarDataUrl(file);
+  if(target==='draft'){draftAvatar=url;draftAvatarTouched=true;paintDraftAvatar();toast('头像已裁好，保存资料后写入云端')}
+  else{const ok=await changeState(next=>{const child=next.children.find(x=>x.id===target);if(child)child.avatar=url});if(ok)toast('头像已保存到云端')}
+ }catch(e){toast(e&&e.message||'无法读取这张照片，请换成 JPG 或 PNG')}
+ finally{avatarBusy=false;if(save&&save.isConnected)save.disabled=false}
+}
+async function clearAvatar(target){
+ if(!canEdit())return;
+ if(target==='draft'){draftAvatar='';draftAvatarTouched=true;paintDraftAvatar();return}
+ const ok=await changeState(next=>{const child=next.children.find(x=>x.id===target);if(child)delete child.avatar});
+ if(ok)toast('已删除头像');
+}
+function editChild(c){if(!canEdit())return;draftAvatar=VT.normalizeAvatar(c&&c.avatar)||'';draftAvatarTouched=false;const has=!!draftAvatar;dialog(`<h3>${c?'编辑资料':'添加孩子'}</h3><div class="avatar-field"><span class="avatar avatar-lg" id="draftAvatar" aria-hidden="true">${c?avatarInner(c):esc(VT.avatarInitial(''))}</span><div class="avatar-actions"><button class="btn sm" type="button" id="draftAvatarPick" onclick="pickAvatar('draft')">${has?'更换头像':'上传头像'}</button><button class="btn sm" type="button" id="draftAvatarClear" onclick="clearAvatar('draft')" ${has?'':'hidden'}>删除头像</button></div></div><label class="f"><span>姓名或小名</span><input name="name" required value="${esc(c?.name)}" oninput="paintDraftAvatar(this.value)"></label><label class="f"><span>出生日期</span><input type="date" name="birth" required value="${c?.birth||''}"></label><label class="f"><span>性别</span><select name="sex"><option value="M">男孩</option><option value="F" ${c?.sex==='F'?'selected':''}>女孩</option></select></label>`,async f=>{if(avatarBusy)return toast('正在处理照片，请稍候');const o={name:f.get('name'),birth:f.get('birth'),sex:f.get('sex')};if(!o.name||!o.birth)return;const ok=await changeState(next=>{if(c){const target=next.children.find(x=>x.id===c.id);Object.assign(target,o);if(draftAvatarTouched){const avatar=VT.normalizeAvatar(draftAvatar);if(avatar)target.avatar=avatar;else delete target.avatar}}else{o.id='c'+Date.now();o.records=[];o.selfPaid={};const avatar=draftAvatarTouched?VT.normalizeAvatar(draftAvatar):'';if(avatar)o.avatar=avatar;next.children.push(o);next.cur=o.id;tab='dash'}});if(ok)toast(c?'已保存到云端':'已添加 '+o.name)},c?'保存修改':'添加孩子')}
 async function toggleSP(id,on){const idc=cur()?.id;await changeState(next=>{const c=next.children.find(x=>x.id===idc);if(!c)return;c.selfPaid=c.selfPaid||{};c.selfPaid[id]=!!on;const v=VT.VACCINES.find(x=>x.id===id);if(on&&v.excl)VT.VACCINES.filter(o=>o.excl===v.excl&&o.id!==id).forEach(o=>c.selfPaid[o.id]=false)});render()}
 async function delChild(){const c=cur();if(c&&confirm('删除 '+c.name+' 及全部记录？'))await changeState(next=>{next.children=next.children.filter(x=>x.id!==c.id);next.cur=next.children[0]?.id||null})}
 let recEditIndex=null;
