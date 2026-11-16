@@ -3,6 +3,31 @@ const puppeteer=require('puppeteer-core'),fs=require('node:fs'),http=require('no
 const session=id=>({access_token:'test-token-'+id,refresh_token:'test-refresh',expires_at:Date.now()+3600000,user:{id,email:id+'@example.com'}});
 const empty=()=>({children:[],cur:null});
 const child=(id,name)=>({id,name,birth:'2026-04-01',sex:'F',records:[],selfPaid:{}});
+function parseEq(url,key){return(new URL(url).searchParams.get(key)||'').replace(/^eq\./,'')}
+async function mockRest(url,opts,remote,stamps,flags={}){
+ const method=(opts.method||'GET').toUpperCase();
+ if(method==='POST'||method==='PATCH'){
+  if(flags.delayWrite)await flags.delayWrite;
+  if(flags.failWrite)return{status:500,body:{}};
+  const payload=JSON.parse(opts.body||'{}');
+  if(method==='POST'){
+   const uid=payload.user_id;
+   if(stamps[uid])return{status:409,body:{}};
+   const updated_at=payload.updated_at||new Date().toISOString();
+   remote[uid]=payload.data;stamps[uid]=updated_at;
+   return{status:201,body:[{data:payload.data,updated_at}]};
+  }
+  const uid=parseEq(url,'user_id'),known=parseEq(url,'updated_at');
+  if(!stamps[uid]||stamps[uid]!==known)return{status:200,body:[]};
+  const updated_at=payload.updated_at||new Date().toISOString();
+  remote[uid]=payload.data;stamps[uid]=updated_at;
+  return{status:200,body:[{data:payload.data,updated_at}]};
+ }
+ if(flags.failRead)return{status:503,body:{}};
+ const uid=parseEq(url,'user_id');
+ if(!stamps[uid])return{status:200,body:[]};
+ return{status:200,body:[{data:remote[uid],updated_at:stamps[uid]}]};
+}
 (async()=>{
  const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html');res.end(fs.readFileSync(__dirname+'/index.html'))});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
@@ -10,25 +35,18 @@ const child=(id,name)=>({id,name,birth:'2026-04-01',sex:'F',records:[],selfPaid:
  let passed=0;const check=msg=>{passed++;console.log('✓ '+msg)};
  try{
  const pg=await browser.newPage(),errors=[];pg.on('pageerror',e=>errors.push(e.message));
- const remote={a:empty(),b:{children:[child('b1','云端小蓝')],cur:'b1'}},requests=[];
+ const remote={a:empty(),b:{children:[child('b1','云端小蓝')],cur:'b1'}},requests=[],stamps={b:'2026-01-01T00:00:00.000Z'};
  let failRead=false,failWrite=false,delayWrite=null,failRefresh=false;
  await pg.exposeFunction('mockCloud',async(url,opts={})=>{
   requests.push({url,opts});
   if(url.includes('/auth/v1/token'))return failRefresh?{status:401,body:{}}:{status:200,body:{access_token:'new-token',refresh_token:'new-refresh',expires_in:3600,user:session('a').user}};
   if(url.includes('/auth/v1/verify'))return {status:200,body:{access_token:'test-token-a',refresh_token:'test-refresh',expires_in:3600,user:session('a').user}};
-  if(opts.method==='POST'){
-   if(delayWrite)await delayWrite;
-   if(failWrite)return {status:500,body:{}};
-   const payload=JSON.parse(opts.body);remote[payload.user_id]=payload.data;return {status:201,body:null};
-  }
-  if(failRead)return {status:503,body:{}};
-  const id=new URL(url).searchParams.get('user_id').slice(3);
-  return {status:200,body:remote[id]?.children.length?[{data:remote[id]}]:[]};
+  return mockRest(url,opts,remote,stamps,{delayWrite,failWrite,failRead});
  });
  await pg.evaluateOnNewDocument(()=>{window.fetch=async(url,opts)=>{const result=await window.mockCloud(String(url),opts);return {ok:result.status<300,status:result.status,json:async()=>result.body}}});
  const url='http://127.0.0.1:'+server.address().port;
  const waitReady=()=>pg.waitForFunction(()=>cloudReady&&!syncBusy);
- const writeCount=()=>requests.filter(r=>r.url.includes('/rest/')&&r.opts.method==='POST').length;
+ const writeCount=()=>requests.filter(r=>r.url.includes('/rest/')&&(r.opts.method==='POST'||r.opts.method==='PATCH')).length;
  await pg.goto(url);await pg.waitForSelector('#main button');
  assert.match(await pg.$eval('#main',e=>e.innerText),/请先邮箱登录/);
  assert.equal(await pg.$eval('.picker button',e=>e.disabled),true);
@@ -66,6 +84,31 @@ const child=(id,name)=>({id,name,birth:'2026-04-01',sex:'F',records:[],selfPaid:
  await pg.evaluate(text=>importJSON({files:[{text:async()=>text}],value:'fixture'}),fixture);assert.equal(remote.a.children.length,2);
  assert.deepEqual(await pg.evaluate(()=>JSON.parse(localStorage.getItem('vt_data_v1'))),legacy);
  check('登录后导入旧档案，上传成功才更新页面');
+ const curId=await pg.evaluate(()=>S.cur),curName=await pg.evaluate(()=>cur().name);
+ await pg.evaluate(()=>addRec('hepb'));
+ await pg.waitForFunction(()=>document.getElementById('dlg')&&document.getElementById('dlg').open);
+ stamps.a='2026-11-16T03:00:00.000Z';
+ remote.a={...remote.a,children:remote.a.children.map(c=>c.id===curId?{...c,name:'其他设备改名'}:c)};
+ await pg.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ assert.equal(await pg.evaluate(()=>cur().name),curName);
+ assert.equal(await pg.evaluate(()=>document.getElementById('dlg').open),true);
+ await pg.evaluate(()=>document.getElementById('dlg').close());
+ await pg.waitForFunction(()=>!syncBusy&&cloudReady&&cur()&&cur().name==='其他设备改名');
+ check('编辑对话框打开时不刷新，关闭后同步其他设备的更新');
+ stamps.a='2026-11-16T04:00:00.000Z';
+ remote.a={children:remote.a.children.filter(c=>c.id===curId).map(c=>({...c,name:'其他设备改名'})),cur:curId};
+ await pg.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await pg.waitForFunction(id=>!syncBusy&&S.children.length===1&&S.cur===id,{},curId);
+ check('标签页重新可见时，采用更新的云端数据并尽量保留当前孩子');
+ stamps.a='2026-11-16T05:00:00.000Z';
+ remote.a={children:[{...remote.a.children[0],name:'再次改名'}],cur:curId};
+ await pg.evaluate(()=>toggleSP('mcv4',true));
+ await pg.waitForFunction(()=>!syncBusy);
+ assert.equal(remote.a.children[0].name,'再次改名');
+ assert.equal(!!(remote.a.children[0].selfPaid&&remote.a.children[0].selfPaid.mcv4),false);
+ assert.equal(await pg.evaluate(()=>cur().name),'再次改名');
+ assert.match(await pg.$eval('#toast',e=>e.innerText),/已刷新/);
+ check('保存前发现云端更新则放弃本地写入并刷新');
  // 保存期间不允许重叠修改。
  let release;delayWrite=new Promise(r=>release=r);const first=pg.evaluate(()=>toggleSP('mcv4',true));await pg.waitForFunction(()=>syncBusy);
  const count=writeCount();await pg.evaluate(()=>toggleSP('hib',true));assert.equal(writeCount(),count);release();await first;delayWrite=null;
@@ -73,7 +116,7 @@ const child=(id,name)=>({id,name,birth:'2026-04-01',sex:'F',records:[],selfPaid:
  pg.on('dialog',d=>d.accept());await pg.evaluate(()=>syncAction());assert.equal(await pg.evaluate(()=>S.children.length),0);assert.equal(await pg.evaluate(()=>localStorage.getItem('vt_auth_v1')),null);
  await pg.reload();assert.match(await pg.$eval('#main',e=>e.innerText),/请先邮箱登录/);
  check('退出清空页面数据和登录会话，刷新不会恢复账号记录');
- await pg.evaluate(s=>localStorage.setItem('vt_auth_v1',JSON.stringify(s)),session('b'));await pg.reload();await waitReady();assert.equal(await pg.evaluate(()=>S.children[0].name),'云端小蓝');assert.equal(remote.a.children.length,2);
+ await pg.evaluate(s=>localStorage.setItem('vt_auth_v1',JSON.stringify(s)),session('b'));await pg.reload();await waitReady();assert.equal(await pg.evaluate(()=>S.children[0].name),'云端小蓝');assert.equal(remote.a.children.length,1);
  check('切换账号仅显示该账号远端记录');
  failRead=true;const writes=writeCount();await pg.reload();await pg.waitForFunction(()=>syncStatus==='err');assert.equal(await pg.evaluate(()=>cloudReady),false);assert.equal(await pg.evaluate(()=>S.children.length),0);assert.equal(writeCount(),writes);await pg.evaluate(()=>editChild());assert.equal(writeCount(),writes);
  failRead=false;await pg.evaluate(()=>reconcileAfterLogin());await waitReady();
@@ -86,7 +129,7 @@ const child=(id,name)=>({id,name,birth:'2026-04-01',sex:'F',records:[],selfPaid:
  assert.equal(await pg.evaluate(()=>cur().records.length),remote.a.children.find(c=>c.id===remote.a.cur).records.length);
  assert.equal(await pg.$('.act-del'),null);
  assert.equal(await pg.evaluate(()=>document.body.innerText.includes('删除孩子')),false);
- await pg.evaluate(()=>delChild());assert.equal(remote.a.children.length,1);
+ await pg.evaluate(()=>delChild());assert.equal(remote.a.children.length,0);
  check('删除记录仍同步到远端；页面上没有删除孩子按钮');
  await pg.evaluate(()=>clearLegacy());assert.equal(await pg.evaluate(()=>localStorage.getItem('vt_data_v1')),null);
  await pg.evaluate(()=>toggleSP('mcv4',true));assert.equal(await pg.evaluate(()=>localStorage.getItem('vt_data_v1')),null);
@@ -183,14 +226,13 @@ async function avatarFlow(pg,remote,legacy,check){
 // 只用模拟账号和模拟孩子，不访问生产 Supabase，也不写入真实接种档案。
 async function fluRecordFlow(browser,url,check,errors){
  const remote={flu:{children:[{id:'c-flu',name:'浔宝',birth:'2026-05-11',sex:'M',records:[],selfPaid:{}}],cur:'c-flu'}};
+ const stamps={flu:'2026-01-01T00:00:00.000Z'};
  const pg=await browser.newPage();
  pg.on('pageerror',e=>errors.push('flu:'+e.message));
  pg.on('dialog',d=>d.accept());
  await pg.exposeFunction('mockCloud',async(reqUrl,opts={})=>{
   if(reqUrl.includes('/auth/v1/token'))return {status:200,body:{access_token:'test-token-flu',refresh_token:'test-refresh',expires_in:3600,user:{id:'flu',email:'flu@example.com'}}};
-  if(opts.method==='POST'){const payload=JSON.parse(opts.body);remote[payload.user_id]=payload.data;return {status:201,body:null};}
-  const id=new URL(reqUrl).searchParams.get('user_id').slice(3);
-  return {status:200,body:remote[id]?.children.length?[{data:remote[id]}]:[]};
+  return mockRest(reqUrl,opts,remote,stamps,{});
  });
  await pg.evaluateOnNewDocument(()=>{window.fetch=async(reqUrl,opts)=>{const result=await window.mockCloud(String(reqUrl),opts);return {ok:result.status<300,status:result.status,json:async()=>result.body}}});
  const session={access_token:'test-token-flu',refresh_token:'test-refresh',expires_at:Date.now()+3600000,user:{id:'flu',email:'flu@example.com'}};
