@@ -269,7 +269,7 @@ const AUTH_KEY='vt_auth_v1';let tab='dash',spPlanOpen=false;
 // 本机仅记住登录会话；业务数据只在本页内存中显示，不写入浏览器存储。
 const store=(()=>{try{return window.localStorage}catch(e){return null}})();
 const emptyState=()=>({children:[],cur:null});
-let S=emptyState(),authSession=null,syncStatus='off',syncBusy=false,cloudReady=false,authEpoch=0,readEpoch=0;
+let S=emptyState(),authSession=null,syncStatus='off',syncBusy=false,cloudReady=false,authEpoch=0,readEpoch=0,cloudUpdatedAt=null,pullBusy=false,pendingPull=false;
 const sb=()=>({url:VT.SUPABASE_URL,key:VT.SUPABASE_ANON_KEY});
 function loadSession(){try{const s=JSON.parse(store?.getItem(AUTH_KEY)||'null');return s&&s.access_token?s:null}catch(e){return null}}
 function persistSession(s){try{if(s)store?.setItem(AUTH_KEY,JSON.stringify(s));else store?.removeItem(AUTH_KEY)}catch(e){console.warn('无法记住登录状态')}}
@@ -277,9 +277,16 @@ function legacyBackup(){try{return VT.normalizeAppState(JSON.parse(store?.getIte
 function exportLegacy(){const old=legacyBackup();if(old)dl('旧版本机备份-'+today()+'.json',JSON.stringify(old,null,2),'application/json')}
 function clearLegacy(){if(confirm('请确认已导出备份，或已登录并导入云端。删除旧版本机记录？')){try{store?.removeItem('vt_data_v1');render()}catch(e){toast('无法清除旧版记录')}}}
 function canEdit(){if(!authSession){openLogin();return false}if(!cloudReady){toast('请先成功读取云端记录');return false}if(syncBusy){toast('正在保存，请稍候');return false}if(!navigator.onLine){toast('当前离线，无法保存到云端');return false}return true}
-async function changeState(change){if(!canEdit())return false;const next=VT.normalizeAppState(S),epoch=authEpoch;change(next);syncBusy=true;setSyncStatus('busy');renderSyncBar();
- try{await pushCloudState(next);if(epoch!==authEpoch)return false;applyState(next);setSyncStatus('ok');render();return true}
- catch(e){console.warn(e);if(epoch===authEpoch){setSyncStatus('err');render();toast('云端保存失败，修改未保存，请重试')}return false}
+async function changeState(change){if(!canEdit())return false;const epoch=authEpoch;syncBusy=true;setSyncStatus('busy');renderSyncBar();
+ try{
+  const cloud=await fetchCloudState();if(epoch!==authEpoch)return false;
+  if(VT.isCloudNewer(cloud.updatedAt,cloudUpdatedAt)){adoptCloudState(cloud.state,cloud.updatedAt);setSyncStatus('ok');render();toast('数据已在其他设备更新，已刷新，请重新操作');return false}
+  const next=VT.normalizeAppState(S);change(next);
+  const savedAt=await pushCloudState(next);if(epoch!==authEpoch)return false;
+  applyState(next);cloudUpdatedAt=savedAt;setSyncStatus('ok');render();return true}
+ catch(e){console.warn(e);if(epoch!==authEpoch)return false;
+  if(e&&e.conflict){try{const cloud=await fetchCloudState();if(epoch!==authEpoch)return false;adoptCloudState(cloud.state,cloud.updatedAt);setSyncStatus('ok');render();toast('数据已在其他设备更新，已刷新，请重新操作')}catch(e2){setSyncStatus('err');render();toast('云端保存失败，修改未保存，请重试')}return false}
+  setSyncStatus('err');render();toast('云端保存失败，修改未保存，请重试');return false}
  finally{syncBusy=false;render()}}
 const $=id=>document.getElementById(id);
 function setSyncStatus(st,msg){syncStatus=st;const dot=$('syncDot'),tx=$('syncText');if(dot){dot.className='dot '+(st==='ok'?'ok':st==='busy'?'busy':st==='err'?'err':'off')}if(tx)tx.textContent=msg}
@@ -294,20 +301,35 @@ async function ensureFreshToken(){if(!authSession||!VT.needsTokenRefresh(authSes
  if(!r.ok)throw new Error('登录已过期');const b=await r.json();if(epoch!==authEpoch)throw new Error('登录状态已改变');const next=VT.sessionFromAuthResponse(b);if(!next?.user?.id)throw new Error('登录刷新失败');authSession=next;persistSession(authSession);return authSession}
 async function fetchCloudState(){await ensureFreshToken();const uid=authSession.user.id;
  const r=await sbFetch('/rest/v1/vaccine_data?user_id=eq.'+encodeURIComponent(uid)+'&select=data,updated_at');
- if(!r.ok)throw new Error('读取云端失败');const rows=await r.json();if(!rows.length)return emptyState();const state=VT.normalizeAppState(rows[0].data);if(!state)throw new Error('云端数据格式错误');return state}
-async function pushCloudState(next){if(!authSession)throw new Error('请先登录');await ensureFreshToken();const uid=authSession.user.id,body={user_id:uid,data:VT.normalizeAppState(next),updated_at:new Date().toISOString()};
- const r=await sbFetch('/rest/v1/vaccine_data',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(body)});
- if(!r.ok)throw new Error('上传失败')}
+ if(!r.ok)throw new Error('读取云端失败');const parsed=VT.readCloudRow(await r.json());if(parsed.error)throw new Error('云端数据格式错误');
+ if(!parsed.exists)return{state:emptyState(),updatedAt:null};return{state:parsed.state,updatedAt:parsed.updatedAt}}
+async function pushCloudState(next){if(!authSession)throw new Error('请先登录');await ensureFreshToken();
+ const uid=authSession.user.id,data=VT.normalizeAppState(next),stamp=new Date().toISOString(),kind=VT.cloudWriteKind(cloudUpdatedAt);
+ const r=kind==='insert'
+  ?await sbFetch('/rest/v1/vaccine_data',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({user_id:uid,data,updated_at:stamp})})
+  :await sbFetch(VT.cloudUpdatePath(uid,cloudUpdatedAt),{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({data,updated_at:stamp})});
+ if(kind==='insert'&&r.status===409)throw Object.assign(new Error('conflict'),{conflict:true});
+ if(!r.ok)throw new Error('上传失败');
+ const rows=await r.json();if(VT.isWriteConflict(kind,r.status,rows))throw Object.assign(new Error('conflict'),{conflict:true});
+ return rows[0]&&rows[0].updated_at||stamp}
 function applyState(next){S=VT.normalizeAppState(next)||emptyState()}
-async function reconcileAfterLogin(){if(!authSession||syncBusy)return;const epoch=authEpoch,read=++readEpoch;cloudReady=false;setSyncStatus('busy');render();
- try{const cloud=await fetchCloudState();if(epoch!==authEpoch||read!==readEpoch)return;applyState(cloud);cloudReady=true;setSyncStatus('ok')}
- catch(e){if(epoch!==authEpoch||read!==readEpoch)return;console.warn(e);applyState(emptyState());setSyncStatus('err');toast('无法读取云端，请联网后重试；不会使用本机记录')}
+function adoptCloudState(state,updatedAt){applyState(VT.preferCurrentChild(state,S.cur));cloudUpdatedAt=updatedAt||null}
+async function reconcileAfterLogin(){if(!authSession||syncBusy)return;const epoch=authEpoch,read=++readEpoch;cloudReady=false;cloudUpdatedAt=null;setSyncStatus('busy');render();
+ try{const cloud=await fetchCloudState();if(epoch!==authEpoch||read!==readEpoch)return;adoptCloudState(cloud.state,cloud.updatedAt);cloudReady=true;setSyncStatus('ok')}
+ catch(e){if(epoch!==authEpoch||read!==readEpoch)return;console.warn(e);applyState(emptyState());cloudUpdatedAt=null;setSyncStatus('err');toast('无法读取云端，请联网后重试；不会使用本机记录')}
  render()}
+function dialogIsOpen(){const d=$('dlg');return!!(d&&d.open)}
+async function pullCloudIfNewer(){if(!authSession||!cloudReady||syncBusy||!navigator.onLine)return;if(dialogIsOpen()){pendingPull=true;return}if(pullBusy)return;
+ pullBusy=true;const epoch=authEpoch;
+ try{const cloud=await fetchCloudState();if(epoch!==authEpoch)return;if(!VT.isCloudNewer(cloud.updatedAt,cloudUpdatedAt))return;adoptCloudState(cloud.state,cloud.updatedAt);setSyncStatus('ok');render()}
+ catch(e){console.warn(e)}finally{pullBusy=false}}
+function onTabResume(){if(authSession&&cloudReady)pullCloudIfNewer()}
+function onDialogClosed(){if(pendingPull){pendingPull=false;pullCloudIfNewer()}}
 async function consumeAuthHash(){const h=location.hash;if(!h||(!h.includes('access_token')&&!h.includes('error')))return null;
  if(h.includes('error=')){history.replaceState(null,'',location.pathname+location.search);toast('登录链接无效或已过期');return null}
  const sess=VT.parseAuthHash(h);if(sess){authSession=sess;persistSession(authSession);history.replaceState(null,'',location.pathname+location.search);toast('已登录');return sess}return null}
 async function initAuth(){authSession=await consumeAuthHash()||loadSession();render();if(authSession)await reconcileAfterLogin()}
-function syncAction(){if(authSession){if(syncBusy)return toast('正在保存，请稍候');if(confirm('退出登录？退出后本页不再显示孩子资料和记录。')){authEpoch++;authSession=null;cloudReady=false;applyState(emptyState());persistSession(null);setSyncStatus('off');render();toast('已退出')}}else openLogin()}
+function syncAction(){if(authSession){if(syncBusy)return toast('正在保存，请稍候');if(confirm('退出登录？退出后本页不再显示孩子资料和记录。')){authEpoch++;authSession=null;cloudReady=false;cloudUpdatedAt=null;pendingPull=false;applyState(emptyState());persistSession(null);setSyncStatus('off');render();toast('已退出')}}else openLogin()}
 function openLogin(){dialog(`<h3>邮箱登录 / 远端记录</h3><p class="muted">登录后从云端读取记录，所有修改仅保存到云端。未登录或离线时不能添加、修改或导入记录。</p>
 <label class="f"><span>邮箱</span><input type="email" name="email" required autocomplete="email" placeholder="you@example.com"></label>
 <button class="btn p" type="button" style="width:100%;margin-top:16px" onclick="sendMagicLink(this)">发送登录链接</button>
@@ -328,9 +350,13 @@ async function sendMagicLink(btn){const f=$('dform'),email=(new FormData(f)).get
 async function verifyOtp(btn){const f=$('dform'),email=(new FormData(f)).get('email'),token=(new FormData(f)).get('otp');if(!email||!token||String(token).length<6)return toast('请填写邮箱和 6 位验证码');btn.disabled=true;
  try{const r=await fetch(sb().url+'/auth/v1/verify',{method:'POST',headers:{apikey:sb().key,'Content-Type':'application/json'},body:JSON.stringify({email,token,type:'email'})});
  if(!r.ok)throw 0;authSession=VT.sessionFromAuthResponse(await r.json());if(!authSession)throw 0;persistSession(authSession);$('dlg').close();toast('已登录');authEpoch++;await reconcileAfterLogin();render()}catch(e){toast('验证码错误或已过期')}finally{btn.disabled=false}}
-window.addEventListener('online',()=>{if(authSession&&!cloudReady)reconcileAfterLogin();else renderSyncBar()});
+window.addEventListener('online',()=>{if(authSession&&!cloudReady)reconcileAfterLogin();else{renderSyncBar();onTabResume()}});
 window.addEventListener('offline',()=>{renderSyncBar()});
 window.addEventListener('beforeunload',e=>{if(syncBusy){e.preventDefault();e.returnValue=''}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')onTabResume()});
+window.addEventListener('focus',onTabResume);
+window.addEventListener('pageshow',onTabResume);
+setInterval(()=>{if(document.visibilityState==='visible')onTabResume()},60000);
 const cur=()=>S.children.find(c=>c.id===S.cur);
 // 展示层：统一转义，并把长破折号/区间号换成普通连字符（数据文件保持原文不改）
 const esc=s=>String(s??'').replace(/[—–]/g,'-').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -428,7 +454,7 @@ function renderInner(){
   const r=recs.filter(x=>x.vid===t.vid).sort((x,y)=>x.date<y.date?-1:1)[t.dose];h+=`<div class="row ${r?'ok':''}"><span class="mk"><i class="mk-i${r?' done':''}" aria-hidden="true"></i></span><span>${esc(t.name)}，${esc(t.label)}${t.nip?'':'<span class="chip k-self">自费</span>'}${r?` <span class="faint">已于 ${r.date} 接种</span>`:''}</span></div>`});h+='</div></section>';}
  if(tab==='rec'){const fluLabels=VT.fluHistoryLabels(c);const recs=(c.records||[]).map((r,i)=>({...r,i})).sort((a,b)=>a.date<b.date?1:-1);h=`<section class="panel"><div class="sec-h"><h3>接种记录</h3><span class="faint">${recs.length} 条</span><span style="flex:1"></span><button class="btn p sm" onclick="addRec()">添加记录</button></div>${recs.map(r=>{const v=VT.VACCINES.find(v=>v.id===r.vid);const dose=r.vid==='flu'&&fluLabels[r.i]?`，${esc(fluLabels[r.i])}`:'';return `<div class="v"><div><span class="n">${esc(v?v.name:r.vid)}</span></div><div class="meta">${r.date}${dose}${r.batch?`，批号 ${esc(r.batch)}`:''}${r.note?`，${esc(r.note)}`:''}</div><div class="act"><button class="btn sm link" onclick="addRec(null,${r.i})">编辑</button><button class="btn sm link danger" onclick="delRec(${r.i})">删除</button></div></div>`}).join('')||'<p class="muted" style="padding:12px 0">还没有记录。打过的针可以在这里补录。</p>'}</section>`;}
  $('main').innerHTML=h;}
-function dialog(html,onok,okText){const epoch=authEpoch;$('dform').innerHTML=html+'<div class="d-acts"><button class="btn" value="c" formnovalidate>取消</button><button class="btn p" value="ok">'+esc(okText||'保存')+'</button></div>';$('dlg').showModal();$('dlg').onclose=()=>{if($('dlg').returnValue==='ok'&&onok&&epoch===authEpoch)onok(new FormData($('dform')))};return $('dform')}
+function dialog(html,onok,okText){const epoch=authEpoch;$('dform').innerHTML=html+'<div class="d-acts"><button class="btn" value="c" formnovalidate>取消</button><button class="btn p" value="ok">'+esc(okText||'保存')+'</button></div>';$('dlg').showModal();$('dlg').onclose=()=>{const saved=$('dlg').returnValue==='ok'&&onok&&epoch===authEpoch;if(saved)onok(new FormData($('dform')));else onDialogClosed()};return $('dform')}
 let avatarTarget=null,draftAvatar='',draftAvatarTouched=false,avatarBusy=false;
 function avatarInner(child){const url=VT.normalizeAvatar(child&&child.avatar);return url?`<img src="${url}" alt="">`:esc(VT.avatarInitial(child&&child.name));}
 function paintChildAvatar(child){const el=$('childAvatar');if(!el)return;if(!child){el.hidden=true;el.innerHTML='';return}el.hidden=false;el.innerHTML=avatarInner(child)}

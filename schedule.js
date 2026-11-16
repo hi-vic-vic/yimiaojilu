@@ -257,6 +257,32 @@ function pickAppState(local,cloud,choice){
  if(choice==='cloud'&&C)return C;if(choice==='local'&&L)return L;
  return L||C||{children:[],cur:null};
 }
+function parseCloudTime(ts){if(ts==null||ts==='')return NaN;return Date.parse(ts)}
+function isCloudNewer(cloudTs,knownTs){
+ const c=parseCloudTime(cloudTs);if(Number.isNaN(c))return false;
+ const k=parseCloudTime(knownTs);if(Number.isNaN(k))return true;
+ return c>k;
+}
+function cloudWriteKind(knownTs){return (knownTs==null||knownTs==='')?'insert':'update'}
+function preferCurrentChild(state,prevCur){
+ const n=normalizeAppState(state)||{children:[],cur:null};
+ if(prevCur&&n.children.some(c=>c.id===prevCur))n.cur=prevCur;
+ return n;
+}
+function cloudUpdatePath(userId,knownTs){
+ return '/rest/v1/vaccine_data?user_id=eq.'+encodeURIComponent(userId)+'&updated_at=eq.'+encodeURIComponent(knownTs);
+}
+function readCloudRow(rows){
+ if(!Array.isArray(rows)||!rows.length)return{state:null,updatedAt:null,exists:false};
+ const state=normalizeAppState(rows[0].data);
+ if(!state)return{error:'bad_data'};
+ return{state,updatedAt:rows[0].updated_at||null,exists:true};
+}
+function isWriteConflict(kind,status,rows){
+ if(kind==='insert')return status===409;
+ if(status>=200&&status<300)return!Array.isArray(rows)||!rows.length;
+ return false;
+}
 function parseAuthHash(hash){
  const q=String(hash||'').replace(/^#/,'');
  if(!q)return null;
@@ -364,7 +390,7 @@ function importIntoState(state,raw,onConflict){
  return{ok:true,state:st,cur:st.cur,message,warnings,imported:totalImported,skipped:totalSkipped};
 }
 const API={isSelected,selfPaidCatalog,normalizeChildSelfPaid,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
- SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh,
+ SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseCloudTime,isCloudNewer,cloudWriteKind,preferCurrentChild,cloudUpdatePath,readCloudRow,isWriteConflict,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh,
  ADDON_IMPORT,ADDON_EXPORT,convertSingleChildExport,exportSingleChild,detectImportFormat,mergeChildRecords,importIntoState,isValidRecordDate,parseDoseKey,
  AVATAR_SIZE,AVATAR_MAX_BYTES,avatarInitial,avatarCrop,avatarByteLength,normalizeAvatar,
  ageInMonths,mcv4BandFromMonths,mcv4BandFirst,mcv4Spec,mcv4Series,applyMcv4NationalCoverage,fluSeries,fluHistoryLabels,validateFluRecord,describeFluDose};
