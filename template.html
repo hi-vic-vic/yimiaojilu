@@ -53,6 +53,7 @@ button,a,label,.opt{touch-action:manipulation;-webkit-tap-highlight-color:transp
 .top{position:sticky;top:0;z-index:2;background:var(--bg);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
 .top-in{max-width:1440px;margin:0 auto;min-height:64px;padding:8px 32px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:8px;font-weight:500;font-size:18px;line-height:1;letter-spacing:0;color:var(--text)}
+.brand-avatar{display:none!important}
 .mark{width:24px;height:24px;display:block;flex:none}
 .brand small{font-weight:400;color:var(--secondary);font-size:13px;margin-left:8px;letter-spacing:0}
 .sync{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;line-height:1.4;color:var(--secondary);flex-wrap:wrap;justify-content:flex-end;max-width:min(52vw,480px)}
@@ -223,10 +224,15 @@ dialog::backdrop{background:rgba(23,23,23,.4)}
 @media (max-width:859px){.cols,.hello{grid-template-columns:1fr}.hello{padding:24px}}
 @media (max-width:767px){
  .top-in{padding:8px 16px;gap:8px}
+ .mark{display:none}
+ .brand{flex:none}
  .brand small{display:none}
+ .brand-avatar:not([hidden]){display:inline-flex!important;width:32px;height:32px;font-size:14px}
+ .picker .avatar{display:none!important}
  .sync{max-width:none;width:100%;order:3;justify-content:flex-start;margin-left:0}
  .picker{flex:1;min-width:0}
  .picker select{flex:1;width:100%;max-width:none;min-width:0}
+ .picker button{flex:none}
  .wrap{padding:16px 16px calc(48px + env(safe-area-inset-bottom))}
  .panel{padding:16px}
  .next{padding:20px;gap:16px}
@@ -239,6 +245,8 @@ dialog::backdrop{background:rgba(23,23,23,.4)}
  .d-acts .btn{flex:1}
 }
 @media (max-width:389px){
+ .top-in{padding:8px 12px;gap:6px}
+ .brand{font-size:16px;gap:6px}
  .next{grid-template-columns:1fr;justify-items:start}
  .next .acts{grid-column:1}
 }
@@ -247,7 +255,7 @@ dialog::backdrop{background:rgba(23,23,23,.4)}
  .btn:active{transform:none}
 }
 </style></head><body>
-<header class="top"><div class="top-in"><div class="brand"><img class="mark" src="icons/favicon-64.png" alt="" width="24" height="24"><span>接种簿<small>中国儿童疫苗记录</small></span></div>
+<header class="top"><div class="top-in"><div class="brand"><span class="avatar brand-avatar" id="childAvatarLead" hidden aria-hidden="true"></span><img class="mark" src="icons/favicon-64.png" alt="" width="24" height="24"><span>接种簿<small>中国儿童疫苗记录</small></span></div>
 <div class="sync" id="syncBar"><span class="dot off" id="syncDot" aria-hidden="true"></span><span id="syncText">远端存储 · 请先登录</span><button class="btn sm" type="button" id="syncBtn" onclick="syncAction()">登录</button></div>
 <div class="picker"><span class="avatar" id="childAvatar" hidden aria-hidden="true"></span><select id="childSel" aria-label="选择孩子"></select><button class="btn sm" onclick="editChild()" aria-label="添加孩子">添加</button></div></div></header>
 <main class="wrap">
@@ -457,7 +465,7 @@ function renderInner(){
 function dialog(html,onok,okText){const epoch=authEpoch;$('dform').innerHTML=html+'<div class="d-acts"><button class="btn" value="c" formnovalidate>取消</button><button class="btn p" value="ok">'+esc(okText||'保存')+'</button></div>';$('dlg').showModal();$('dlg').onclose=()=>{const saved=$('dlg').returnValue==='ok'&&onok&&epoch===authEpoch;if(saved)onok(new FormData($('dform')));else onDialogClosed()};return $('dform')}
 let avatarTarget=null,draftAvatar='',draftAvatarTouched=false,avatarBusy=false;
 function avatarInner(child){const url=VT.normalizeAvatar(child&&child.avatar);return url?`<img src="${url}" alt="">`:esc(VT.avatarInitial(child&&child.name));}
-function paintChildAvatar(child){const el=$('childAvatar');if(!el)return;if(!child){el.hidden=true;el.innerHTML='';return}el.hidden=false;el.innerHTML=avatarInner(child)}
+function paintChildAvatar(child){const paint=el=>{if(!el)return;if(!child){el.hidden=true;el.innerHTML='';return}el.hidden=false;el.innerHTML=avatarInner(child)};paint($('childAvatar'));paint($('childAvatarLead'))}
 function paintDraftAvatar(name){const el=$('draftAvatar');if(!el)return;const url=VT.normalizeAvatar(draftAvatar);const typed=name!=null?name:($('dform')&&$('dform').elements.name?$('dform').elements.name.value:'');el.innerHTML=url?`<img src="${url}" alt="">`:esc(VT.avatarInitial(typed));const clr=$('draftAvatarClear'),pick=$('draftAvatarPick');if(clr)clr.hidden=!url;if(pick)pick.textContent=url?'更换头像':'上传头像'}
 function pickAvatar(target){if(!canEdit()||avatarBusy){if(avatarBusy)toast('正在处理照片，请稍候');return}avatarTarget=target;const input=$('avatarFile');input.value='';input.click()}
 async function decodeAvatarFile(file){
