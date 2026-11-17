@@ -222,6 +222,7 @@ function upcoming(child,today){const T=today?parse(today):parse(new Date().toISO
  seriesPlan(child,today).forEach(s=>{if(s.due&&['overdue','soon','future'].includes(s.status))L.push(s);
   else if(s.status==='covered'&&s.laterDue)L.push({...s,status:statusOf(s.laterDue,T),due:s.laterDue<fmt(T)?fmt(T):s.laterDue,nextLabel:s.laterLabel,later:true});});
  return L.sort((a,b)=>a.due<b.due?-1:1);}
+function nextUpcoming(child,today){return upcoming(child,today)[0]||null}
 function fluTimelineItems(child,todayStr){
  const labels=fluHistoryLabels(child);
  const recs=(child.records||[]).map((r,i)=>({...r,i})).filter(r=>r.vid==='flu'&&isValidRecordDate(r.date)).sort((a,b)=>a.date<b.date?-1:1);
@@ -231,7 +232,7 @@ function fluTimelineItems(child,todayStr){
  return items;
 }
 function timeline(child,todayStr){const today=todayStr||fmt(new Date()),b=parse(child.birth),items=[];for(const v of V){if(v.catchupOnly||(v.sexOnly&&child.sex&&child.sex!==v.sexOnly&&v.nip))continue;if(v.id==='flu'){fluTimelineItems(child,today).forEach(it=>items.push(it));continue;}v.doses.forEach((d,i)=>items.push({vid:v.id,dose:i,name:v.name,label:d.label,nip:v.nip,date:fmt(addAge(b,d.age)),age:d.age}));}return items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(b.nip-a.nip));}
-function ics(child,today){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//vaccine-tracker//CN','CALSCALE:GREGORIAN'];upcoming(child,today).forEach(s=>{if(s.dueKind==='earliest')return;const d=s.due.replace(/-/g,'');const desc=s.id==='flu'?'建议接种时间，不是门诊预约。本站不会自动推送或代为预约。请以接种门诊安排为准':'仅供参考，请以接种门诊安排为准';L.push('BEGIN:VEVENT','UID:'+child.id+'-'+s.id+'-'+d+'@vt','DTSTAMP:'+d+'T000000Z','DTSTART;VALUE=DATE:'+d,'SUMMARY:'+child.name+' 接种 '+s.name+' '+s.nextLabel,'DESCRIPTION:'+desc);if(s.id!=='flu')L.push('BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:疫苗接种提醒','END:VALARM');L.push('END:VEVENT');});L.push('END:VCALENDAR');return L.join('\r\n');}
+function ics(child,today){const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//vaccine-tracker//CN','CALSCALE:GREGORIAN'];upcoming(child,today).forEach(s=>{const d=s.due.replace(/-/g,'');const desc=s.dueKind==='earliest'?'最早可接种日期，不是门诊预约。本站不会自动推送或代为预约。请以接种门诊安排为准':s.id==='flu'?'建议接种时间，不是门诊预约。本站不会自动推送或代为预约。请以接种门诊安排为准':'仅供参考，请以接种门诊安排为准';L.push('BEGIN:VEVENT','UID:'+child.id+'-'+s.id+'-'+d+'@vt','DTSTAMP:'+d+'T000000Z','DTSTART;VALUE=DATE:'+d,'SUMMARY:'+child.name+' 接种 '+s.name+' '+s.nextLabel,'DESCRIPTION:'+desc);if(s.id!=='flu')L.push('BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:疫苗接种提醒','END:VALARM');L.push('END:VEVENT');});L.push('END:VCALENDAR');return L.join('\r\n');}
 function ageText(birth,today){const b=parse(birth),t=today?parse(today):new Date();let m=(t.getUTCFullYear()-b.getUTCFullYear())*12+t.getUTCMonth()-b.getUTCMonth();if(t.getUTCDate()<b.getUTCDate())m--;if(m<1)return Math.floor((t-b)/DAY)+'天';return m<24?m+'月龄':Math.floor(m/12)+'岁'+(m%12?m%12+'个月':'');}
 // ===== 云同步（Supabase REST，无 supabase-js）=====
 const SUPABASE_URL='https://hdvcfesguugxfapurfif.supabase.co';
@@ -389,7 +390,7 @@ function importIntoState(state,raw,onConflict){
  if(added&&updated)message+='（新增 '+added+' 人，更新 '+updated+' 人）';else if(added)message+='（新增 '+added+' 个孩子）';else if(updated)message+='（已更新 '+updated+' 个孩子）';
  return{ok:true,state:st,cur:st.cur,message,warnings,imported:totalImported,skipped:totalSkipped};
 }
-const API={isSelected,selfPaidCatalog,normalizeChildSelfPaid,VACCINES:V,SOURCE,seriesPlan,upcoming,timeline,ics,ageText,addAge,parse,fmt,
+const API={isSelected,selfPaidCatalog,normalizeChildSelfPaid,VACCINES:V,SOURCE,seriesPlan,upcoming,nextUpcoming,timeline,ics,ageText,addAge,parse,fmt,
  SUPABASE_URL,SUPABASE_ANON_KEY,b64urlDecodeJson,decodeJwtPayload,normalizeAppState,appStateFingerprint,appStatesEqual,isCloudEmpty,pickAppState,parseCloudTime,isCloudNewer,cloudWriteKind,preferCurrentChild,cloudUpdatePath,readCloudRow,isWriteConflict,parseAuthHash,sessionFromAuthResponse,needsTokenRefresh,
  ADDON_IMPORT,ADDON_EXPORT,convertSingleChildExport,exportSingleChild,detectImportFormat,mergeChildRecords,importIntoState,isValidRecordDate,parseDoseKey,
  AVATAR_SIZE,AVATAR_MAX_BYTES,avatarInitial,avatarCrop,avatarByteLength,normalizeAvatar,

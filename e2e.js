@@ -266,10 +266,13 @@ async function fluRecordFlow(browser,url,check,errors){
  assert.match(rowText,/已接种 1\/2/);
  assert.match(rowText,/2026-12-09/);
  assert.match(rowText,/不是预约/);
- assert.ok(!(await pg.$eval('.bento-hero',e=>e.innerText)).includes('12月9日'));
+ const fluDue=await pg.evaluate(()=>(VT.upcoming(cur(),'2026-11-12').find(s=>s.id==='flu')||{}).due);
+ assert.equal(fluDue,'2026-12-09');
  const ics=await pg.evaluate(()=>VT.ics(cur(),'2026-11-12'));
- assert.ok(!ics.includes('流感'));
- assert.ok(!ics.includes('20261209'));
+ const fluEv=ics.split('BEGIN:VEVENT').map(x=>x.split('END:VEVENT')[0]).find(x=>x.includes('流感'))||'';
+ assert.ok(fluEv.includes('20261209'));
+ assert.ok(fluEv.includes('不是门诊预约'));
+ assert.ok(!fluEv.includes('VALARM'));
  check('未勾选流感时可以记录第1剂，最早日期不是预约');
  await pg.evaluate(()=>toggleSP('flu',false));
  await pg.waitForFunction(()=>cur().selfPaid.flu===false&&!syncBusy);

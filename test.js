@@ -172,7 +172,8 @@ console.log('mcv4 note ok');
  const described=VT.describeFluDose(sim,'2026-12-11');assert.equal(described.ok,true);assert.ok(described.hint.includes('不是预约'));
  const opened=VT.describeFluDose(sim,'',null,'2026-11-12');assert.match(opened.label,/第2剂/);assert.match(opened.hint,/2026-12-09/);assert.match(opened.hint,/不是预约/);assert.equal(opened.ok,false);
  const ics1=VT.ics(sim,'2026-11-12');
- assert.ok(!ics1.includes('流感'));assert.ok(!ics1.includes('DTSTART;VALUE=DATE:20261209'));assert.ok(!ics1.includes('20261211'));
+ const fluEv1=ics1.split('BEGIN:VEVENT').map(x=>x.split('END:VEVENT')[0]).find(x=>x.includes('流感'))||'';
+ assert.ok(fluEv1.includes('DTSTART;VALUE=DATE:20261209'));assert.ok(fluEv1.includes('不是门诊预约'));assert.ok(!fluEv1.includes('VALARM'));assert.ok(!ics1.includes('20261211'));
  const tl1=VT.timeline(sim,'2026-11-12').filter(x=>x.vid==='flu');
  assert.ok(tl1.some(x=>x.done&&x.date==='2026-11-11'&&x.label==='本季第1剂'));
  assert.ok(tl1.some(x=>!x.done&&x.dueKind==='earliest'&&x.date==='2026-12-09'&&x.appointment===false));
@@ -203,6 +204,25 @@ console.log('mcv4 note ok');
  const imp=VT.importIntoState({children:[],cur:null},exp);assert.equal(imp.state.children[0].records.length,2);
  s=g(VT.seriesPlan({birth:'2017-01-01',records:[],selfPaid:{flu:true}},'2026-11-11'),'flu');assert.equal(s.total,1);
  s=g(VT.seriesPlan({birth:'2018-05-11',records:[],selfPaid:{flu:true}},'2026-11-11'),'flu');assert.equal(s.total,2);
+ // 浔宝式样例：流感第2剂最早日早于曼海欣第3剂时，下一针、30天计数和日历都应纳入流感，不能因 dueKind=earliest 跳过。
+ const xun={id:'baby-x',name:'浔宝',birth:'2026-05-11',sex:'M',records:[
+  {vid:'bcg',date:'2026-05-11'},{vid:'hepb',date:'2026-05-11'},{vid:'hepb',date:'2026-06-11'},
+  {vid:'penta',date:'2026-07-22'},{vid:'penta',date:'2026-08-22'},{vid:'rv3',date:'2026-08-05'},
+  {vid:'rv3',date:'2026-09-08'},{vid:'penta',date:'2026-09-24'},{vid:'rv3',date:'2026-10-08'},
+  {vid:'mcv4',date:'2026-10-13'},{vid:'flu',date:'2026-11-11'},{vid:'hepb',date:'2026-11-13'},
+  {vid:'mcv4',date:'2026-11-17'}
+ ],selfPaid:{flu:true,rv3:true,var:true,mcv4:true,penta:true}};
+ const upX=VT.upcoming(xun,'2026-11-17');
+ assert.equal(upX[0].id,'flu');assert.equal(upX[0].due,'2026-12-09');assert.equal(upX[0].dueKind,'earliest');
+ assert.equal(upX[1].id,'mcv4');assert.equal(upX[1].due,'2026-12-15');
+ assert.equal(VT.nextUpcoming(xun,'2026-11-17').id,'flu');
+ assert.equal(VT.nextUpcoming(xun,'2026-11-17').due,'2026-12-09');
+ const soonIds=VT.seriesPlan(xun,'2026-11-17').filter(s=>(s.nip||s.selected)&&s.status==='soon').map(s=>s.id);
+ assert.ok(soonIds.includes('flu'));assert.ok(soonIds.includes('mcv4'));
+ const icsX=VT.ics(xun,'2026-11-17');
+ const fluEvX=icsX.split('BEGIN:VEVENT').map(x=>x.split('END:VEVENT')[0]).find(x=>x.includes('流感'))||'';
+ assert.ok(fluEvX.includes('20261209'));assert.ok(fluEvX.includes('不是门诊预约'));assert.ok(!fluEvX.includes('VALARM'));
+ assert.ok(icsX.includes('20261215'));
 })();
 console.log('flu ok');
 // 孩子头像：裁成正方形的 JPEG data URL，放在 profile 里，旧档案没有该字段也能导入
